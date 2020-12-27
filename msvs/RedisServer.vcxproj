@@ -208,10 +208,8 @@
     <ClCompile Include="..\src\memtest.c" />
     <ClCompile Include="..\src\multi.c" />
     <ClCompile Include="..\src\networking.c" />
-    <ClCompile Include="..\src\notify.c" />
     <ClCompile Include="..\src\object.c" />
     <ClCompile Include="..\src\pqsort.c" />
-    <ClCompile Include="..\src\pubsub.c" />
     <ClCompile Include="..\src\rand.c" />
     <ClCompile Include="..\src\rdb.c" />
     <ClCompile Include="..\src\redis.c" />

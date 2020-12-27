@@ -442,10 +442,6 @@ void sentinelRoleCommand(redisClient *c);
 struct redisCommand sentinelcmds[] = {
     {"ping",pingCommand,1,"",0,NULL,0,0,0,0,0},
     {"sentinel",sentinelCommand,-2,"",0,NULL,0,0,0,0,0},
-    {"subscribe",subscribeCommand,-2,"",0,NULL,0,0,0,0,0},
-    {"unsubscribe",unsubscribeCommand,-1,"",0,NULL,0,0,0,0,0},
-    {"psubscribe",psubscribeCommand,-2,"",0,NULL,0,0,0,0,0},
-    {"punsubscribe",punsubscribeCommand,-1,"",0,NULL,0,0,0,0,0},
     {"publish",sentinelPublishCommand,3,"",0,NULL,0,0,0,0,0},
     {"info",sentinelInfoCommand,-1,"",0,NULL,0,0,0,0,0},
     {"role",sentinelRoleCommand,1,"l",0,NULL,0,0,0,0,0},
@@ -615,15 +611,6 @@ void sentinelEvent(int level, char *type, sentinelRedisInstance *ri,
     /* Log the message if the log level allows it to be logged. */
     if (level >= server.verbosity)
         redisLog(level,"%s %s",type,msg);
-
-    /* Publish the message via Pub/Sub if it's not a debugging one. */
-    if (level != REDIS_DEBUG) {
-        channel = createStringObject(type,strlen(type));
-        payload = createStringObject(msg,strlen(msg));
-        pubsubPublishMessage(channel,payload);
-        decrRefCount(channel);
-        decrRefCount(payload);
-    }
 
     /* Call the notification script if applicable. */
     if (level == REDIS_WARNING && ri != NULL) {

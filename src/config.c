@@ -59,8 +59,7 @@ static struct {
 
 clientBufferLimitsConfig clientBufferLimitsDefaults[REDIS_CLIENT_TYPE_COUNT] = {
     {0, 0, 0}, /* normal */
-    {1024*1024*256, 1024*1024*64, 60}, /* slave */
-    {1024*1024*32, 1024*1024*8, 60}  /* pubsub */
+    {1024 * 1024 * 256, 1024 * 1024 * 64, 60} /* slave */
 };
 
 /*-----------------------------------------------------------------------------
@@ -526,14 +525,6 @@ void loadServerConfigFromString(char *config) {
             if (server.repl_min_slaves_max_lag < 0) {
                 err = "Invalid value for min-slaves-max-lag."; goto loaderr;
             }
-        } else if (!strcasecmp(argv[0],"notify-keyspace-events") && argc == 2) {
-            int flags = keyspaceEventsStringToFlags(argv[1]);
-
-            if (flags == -1) {
-                err = "Invalid event class character. Use 'g$lshzxeA'.";
-                goto loaderr;
-            }
-            server.notify_keyspace_events = flags;
         } else if (!strcasecmp(argv[0],"sentinel")) {
             /* argc == 1 is handled by main() as we need to enter the sentinel
              * mode ASAP. */
@@ -964,11 +955,6 @@ void configSetCommand(redisClient *c) {
 
         if (yn == -1) goto badfmt;
         server.rdb_checksum = yn;
-    } else if (!strcasecmp(c->argv[2]->ptr, "notify-keyspace-events")) {
-        int flags = keyspaceEventsStringToFlags(o->ptr);
-
-        if (flags == -1) goto badfmt;
-        server.notify_keyspace_events = flags;
     } else if (!strcasecmp(c->argv[2]->ptr,"repl-disable-tcp-nodelay")) {
         int yn = yesnotoi(o->ptr);
 
@@ -1235,15 +1221,6 @@ void configGetCommand(redisClient *c) {
         else
             buf[0] = '\0';
         addReplyBulkCString(c,buf);
-        matches++;
-    }
-    if (stringmatch(pattern,"notify-keyspace-events",0)) {
-        robj *flagsobj = createObject(REDIS_STRING,
-            keyspaceEventsFlagsToString(server.notify_keyspace_events));
-
-        addReplyBulkCString(c,"notify-keyspace-events");
-        addReplyBulk(c,flagsobj);
-        decrRefCount(flagsobj);
         matches++;
     }
     if (stringmatch(pattern,"bind",0)) {
@@ -1604,11 +1581,9 @@ void rewriteConfigSlaveofOption(struct rewriteConfigState *state) {
 
 /* Rewrite the notify-keyspace-events option. */
 void rewriteConfigNotifykeyspaceeventsOption(struct rewriteConfigState *state) {
-    int force = server.notify_keyspace_events != 0;
+    int force = 0;
     char *option = "notify-keyspace-events";
     sds line, flags;
-
-    flags = keyspaceEventsFlagsToString(server.notify_keyspace_events);
     line = sdsnew(option);
     line = sdscatlen(line, " ", 1);
     line = sdscatrepr(line, flags, sdslen(flags));

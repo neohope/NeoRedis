@@ -175,7 +175,6 @@ POSIX_ONLY(#define REDIS_MAX_LOGMSG_LEN    1024) /* Default maximum length of sy
 #define REDIS_CMD_DENYOOM 4                 /* "m" flag */
 #define REDIS_CMD_NOT_USED_1 8              /* no longer used flag */
 #define REDIS_CMD_ADMIN 16                  /* "a" flag */
-#define REDIS_CMD_PUBSUB 32                 /* "p" flag */
 #define REDIS_CMD_NOSCRIPT  64              /* "s" flag */
 #define REDIS_CMD_RANDOM 128                /* "R" flag */
 #define REDIS_CMD_SORT_FOR_SCRIPT 256       /* "S" flag */
@@ -255,7 +254,6 @@ POSIX_ONLY(#define REDIS_MAX_LOGMSG_LEN    1024) /* Default maximum length of sy
 #define REDIS_FORCE_AOF (1<<14)   /* Force AOF propagation of current cmd. */
 #define REDIS_FORCE_REPL (1<<15)  /* Force replication of current cmd. */
 #define REDIS_PRE_PSYNC (1<<16)   /* Instance don't understand PSYNC. */
-#define REDIS_PUBSUB (1<<18)      /* Client is in Pub/Sub mode. */
 
 /* Client block type (btype field in client structure)
  * if REDIS_BLOCKED flag is set. */
@@ -271,8 +269,7 @@ POSIX_ONLY(#define REDIS_MAX_LOGMSG_LEN    1024) /* Default maximum length of sy
  * the max-client-output-buffer limit implementation. */
 #define REDIS_CLIENT_TYPE_NORMAL 0 /* Normal req-reply clients + MONITORs */
 #define REDIS_CLIENT_TYPE_SLAVE 1  /* Slaves. */
-#define REDIS_CLIENT_TYPE_PUBSUB 2 /* Clients subscribed to PubSub channels. */
-#define REDIS_CLIENT_TYPE_COUNT 3
+#define REDIS_CLIENT_TYPE_COUNT 2
 
 /* Slave replication state. Used in server.repl_state for slaves to remember
  * what to do next. */
@@ -573,8 +570,6 @@ typedef struct redisClient {
     blockingState bpop;     /* blocking state */
     PORT_LONGLONG woff;         /* Last write global replication offset. */
     list *watched_keys;     /* Keys WATCHED for MULTI/EXEC CAS */
-    dict *pubsub_channels;  /* channels a client is interested in (SUBSCRIBE) */
-    list *pubsub_patterns;  /* patterns a client is interested in (SUBSCRIBE) */
     sds peerid;             /* Cached peer ID. */
     WIN32_ONLY(char replFileCopy[_MAX_PATH];)
 
@@ -594,8 +589,7 @@ struct sharedObjectsStruct {
     *emptymultibulk, *wrongtypeerr, *nokeyerr, *syntaxerr, *sameobjecterr,
     *outofrangeerr, *noscripterr, *loadingerr, *slowscripterr, *bgsaveerr,
     *masterdownerr, *roslaveerr, *execaborterr, *noautherr, *noreplicaserr,
-    *busykeyerr, *oomerr, *plus, *messagebulk, *pmessagebulk, *subscribebulk,
-    *unsubscribebulk, *psubscribebulk, *punsubscribebulk, *del, *rpop, *lpop,
+    *busykeyerr, *oomerr, *plus, *del, *rpop, *lpop,
     *lpush, *emptyscan, *minstring, *maxstring,
     *select[REDIS_SHARED_SELECT_CMDS],
     *integers[REDIS_SHARED_INTEGERS],
@@ -888,11 +882,8 @@ struct redisServer {
     size_t hll_sparse_max_bytes;
     time_t unixtime;        /* Unix time sampled every cron cycle. */
     PORT_LONGLONG mstime;       /* Like 'unixtime' but with milliseconds resolution. */
-    /* Pubsub */
-    dict *pubsub_channels;  /* Map channels to list of subscribed clients */
-    list *pubsub_patterns;  /* A list of pubsub_patterns */
-    int notify_keyspace_events; /* Events to propagate via Pub/Sub. This is an
-                                   xor of REDIS_NOTIFY... flags. */
+
+    /* Pubsub  Removed*/
 
 	/* Cluster Removed*/
 
@@ -908,11 +899,6 @@ struct redisServer {
     int bug_report_start; /* True if bug report header was already logged. */
     int watchdog_period;  /* Software watchdog period in ms. 0 = off */
 };
-
-typedef struct pubsubPattern {
-    redisClient *client;
-    robj *pattern;
-} pubsubPattern;
 
 typedef void redisCommandProc(redisClient *c);
 typedef int *redisGetKeysProc(struct redisCommand *cmd, robj **argv, int argc, int *numkeys);
@@ -1290,18 +1276,6 @@ void hashTypeCurrentFromHashTable(hashTypeIterator *hi, int what, robj **dst);
 robj *hashTypeCurrentObject(hashTypeIterator *hi, int what);
 robj *hashTypeLookupWriteOrCreate(redisClient *c, robj *key);
 
-/* Pub / Sub */
-int pubsubUnsubscribeAllChannels(redisClient *c, int notify);
-int pubsubUnsubscribeAllPatterns(redisClient *c, int notify);
-void freePubsubPattern(void *p);
-int listMatchPubsubPattern(void *a, void *b);
-int pubsubPublishMessage(robj *channel, robj *message);
-
-/* Keyspace events notification */
-void notifyKeyspaceEvent(int type, char *event, robj *key, int dbid);
-int keyspaceEventsStringToFlags(char *classes);
-sds keyspaceEventsFlagsToString(int flags);
-
 /* Configuration */
 void loadServerConfig(char *filename, char *options);
 void appendServerSaveParams(time_t seconds, int changes);
@@ -1492,12 +1466,6 @@ void hscanCommand(redisClient *c);
 void configCommand(redisClient *c);
 void hincrbyCommand(redisClient *c);
 void hincrbyfloatCommand(redisClient *c);
-void subscribeCommand(redisClient *c);
-void unsubscribeCommand(redisClient *c);
-void psubscribeCommand(redisClient *c);
-void punsubscribeCommand(redisClient *c);
-void publishCommand(redisClient *c);
-void pubsubCommand(redisClient *c);
 void watchCommand(redisClient *c);
 void unwatchCommand(redisClient *c);
 void objectCommand(redisClient *c);

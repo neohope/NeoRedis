@@ -129,11 +129,7 @@ redisClient *createClient(int fd) {
     c->bpop.reploffset = 0;
     c->woff = 0;
     c->watched_keys = listCreate();
-    c->pubsub_channels = dictCreate(&setDictType,NULL);
-    c->pubsub_patterns = listCreate();
     c->peerid = NULL;
-    listSetFreeMethod(c->pubsub_patterns,decrRefCountVoid);
-    listSetMatchMethod(c->pubsub_patterns,listMatchObjects);
     if (fd != -1) listAddNodeTail(server.clients,c);
     initClientMultiState(c);
     return c;
@@ -721,12 +717,6 @@ void freeClient(redisClient *c) {
     /* UNWATCH all the keys */
     unwatchAllKeys(c);
     listRelease(c->watched_keys);
-
-    /* Unsubscribe from all the pubsub channels */
-    pubsubUnsubscribeAllChannels(c,0);
-    pubsubUnsubscribeAllPatterns(c,0);
-    dictRelease(c->pubsub_channels);
-    listRelease(c->pubsub_patterns);
 
     /* Close socket, unregister events, and remove list of replies and
      * accumulated arguments. */
@@ -1453,7 +1443,7 @@ sds catClientInfoString(sds s, redisClient *client) {
     if (emask & AE_WRITABLE) *p++ = 'w';
     *p = '\0';
     return sdscatfmt(s,
-        "id=%U addr=%s fd=%i name=%s age=%I idle=%I flags=%s db=%i sub=%i psub=%i multi=%i qbuf=%U qbuf-free=%U obl=%U oll=%U omem=%U events=%s cmd=%s",
+        "id=%U addr=%s fd=%i name=%s age=%I idle=%I flags=%s db=%i multi=%i qbuf=%U qbuf-free=%U obl=%U oll=%U omem=%U events=%s cmd=%s",
         (PORT_ULONGLONG) client->id,
         getClientPeerId(client),
         client->fd,
@@ -1462,8 +1452,6 @@ sds catClientInfoString(sds s, redisClient *client) {
         (PORT_LONGLONG)(server.unixtime - client->lastinteraction),
         flags,
         client->db->id,
-        (int) dictSize(client->pubsub_channels),
-        (int) listLength(client->pubsub_patterns),
         (client->flags & REDIS_MULTI) ? client->mstate.count : -1,
         (PORT_ULONGLONG) sdslen(client->querybuf),
         (PORT_ULONGLONG) sdsavail(client->querybuf),
@@ -1706,28 +1694,21 @@ PORT_ULONG getClientOutputBufferMemoryUsage(redisClient *c) {
  * The function will return one of the following:
  * REDIS_CLIENT_TYPE_NORMAL -> Normal client
  * REDIS_CLIENT_TYPE_SLAVE  -> Slave or client executing MONITOR command
- * REDIS_CLIENT_TYPE_PUBSUB -> Client subscribed to Pub/Sub channels
  */
 int getClientType(redisClient *c) {
     if ((c->flags & REDIS_SLAVE) && !(c->flags & REDIS_MONITOR))
         return REDIS_CLIENT_TYPE_SLAVE;
-    if (c->flags & REDIS_PUBSUB)
-        return REDIS_CLIENT_TYPE_PUBSUB;
     return REDIS_CLIENT_TYPE_NORMAL;
 }
 
 int getClientTypeByName(char *name) {
     if (!strcasecmp(name,"normal")) return REDIS_CLIENT_TYPE_NORMAL;
-    else if (!strcasecmp(name,"slave")) return REDIS_CLIENT_TYPE_SLAVE;
-    else if (!strcasecmp(name,"pubsub")) return REDIS_CLIENT_TYPE_PUBSUB;
     else return -1;
 }
 
 char *getClientTypeName(int class) {
     switch(class) {
     case REDIS_CLIENT_TYPE_NORMAL: return "normal";
-    case REDIS_CLIENT_TYPE_SLAVE:  return "slave";
-    case REDIS_CLIENT_TYPE_PUBSUB: return "pubsub";
     default:                       return NULL;
     }
 }

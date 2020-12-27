@@ -119,7 +119,6 @@ static struct config {
     int interactive;
     int shutdown;
     int monitor_mode;
-    int pubsub_mode;
     int latency_mode;
     int latency_dist_mode;
     int latency_history;
@@ -667,8 +666,6 @@ static int cliSendCommand(int argc, char **argv, int repeat) {
 
     if (!strcasecmp(command,"shutdown")) config.shutdown = 1;
     if (!strcasecmp(command,"monitor")) config.monitor_mode = 1;
-    if (!strcasecmp(command,"subscribe") ||
-        !strcasecmp(command,"psubscribe")) config.pubsub_mode = 1;
     if (!strcasecmp(command,"sync") ||
         !strcasecmp(command,"psync")) config.slave_mode = 1;
 
@@ -682,14 +679,6 @@ static int cliSendCommand(int argc, char **argv, int repeat) {
         while (config.monitor_mode) {
             if (cliReadReply(output_raw) != REDIS_OK) exit(1);
             fflush(stdout);
-        }
-
-        if (config.pubsub_mode) {
-            if (config.output != OUTPUT_RAW)
-                printf("Reading messages... (press Ctrl-C to quit)\n");
-            while (1) {
-                if (cliReadReply(output_raw) != REDIS_OK) exit(1);
-            }
         }
 
         if (config.slave_mode) {
@@ -2141,7 +2130,6 @@ int main(int argc, char **argv) {
     config.interactive = 0;
     config.shutdown = 0;
     config.monitor_mode = 0;
-    config.pubsub_mode = 0;
     config.latency_mode = 0;
     config.latency_dist_mode = 0;
     config.latency_history = 0;
