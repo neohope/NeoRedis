@@ -132,7 +132,6 @@ void unblockClient(redisClient *c) {
     if (c->btype == REDIS_BLOCKED_LIST) {
         unblockClientWaitingData(c);
     } else if (c->btype == REDIS_BLOCKED_WAIT) {
-        unblockClientWaitingReplicas(c);
     } else {
         redisPanic("Unknown btype in unblockClient().");
     }
@@ -151,7 +150,7 @@ void replyToBlockedClientTimedOut(redisClient *c) {
     if (c->btype == REDIS_BLOCKED_LIST) {
         addReply(c,shared.nullmultibulk);
     } else if (c->btype == REDIS_BLOCKED_WAIT) {
-        addReplyLongLong(c,replicationCountAcksByOffset(c->bpop.reploffset));
+        addReplyLongLong(c, 0);
     } else {
         redisPanic("Unknown btype in replyToBlockedClientTimedOut().");
     }

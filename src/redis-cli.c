@@ -124,7 +124,6 @@ static struct config {
     int latency_history;
     int lru_test_mode;
     PORT_LONGLONG lru_test_sample_size;
-    int slave_mode;
     int pipe_mode;
     int pipe_timeout;
     int getrdb_mode;
@@ -145,7 +144,6 @@ static struct config {
 
 static volatile sig_atomic_t force_cancel_loop = 0;
 static void usage(void);
-static void slaveMode(void);
 char *redisGitSHA1(void);
 char *redisGitDirty(void);
 
@@ -666,8 +664,6 @@ static int cliSendCommand(int argc, char **argv, int repeat) {
 
     if (!strcasecmp(command,"shutdown")) config.shutdown = 1;
     if (!strcasecmp(command,"monitor")) config.monitor_mode = 1;
-    if (!strcasecmp(command,"sync") ||
-        !strcasecmp(command,"psync")) config.slave_mode = 1;
 
     /* Setup argument length */
     argvlen = malloc(argc*sizeof(size_t));
@@ -679,14 +675,6 @@ static int cliSendCommand(int argc, char **argv, int repeat) {
         while (config.monitor_mode) {
             if (cliReadReply(output_raw) != REDIS_OK) exit(1);
             fflush(stdout);
-        }
-
-        if (config.slave_mode) {
-            printf("Entering slave output mode...  (press Ctrl-C to quit)\n");
-            slaveMode();
-            config.slave_mode = 0;
-            free(argvlen);
-            return REDIS_ERR;  /* Error = slaveMode lost connection to master */
         }
 
         if (cliReadReply(output_raw) != REDIS_OK) {
@@ -794,8 +782,6 @@ static int parseOptions(int argc, char **argv) {
         } else if (!strcmp(argv[i],"--lru-test") && !lastarg) {
             config.lru_test_mode = 1;
             config.lru_test_sample_size = strtoll(argv[++i],NULL,10);
-        } else if (!strcmp(argv[i],"--slave")) {
-            config.slave_mode = 1;
         } else if (!strcmp(argv[i],"--stat")) {
             config.stat_mode = 1;
         } else if (!strcmp(argv[i],"--scan")) {
@@ -881,7 +867,6 @@ static void usage(void) {
 "  --latency-dist     Shows latency as a spectrum, requires xterm 256 colors.\n"
 "                     Default time interval is 1 sec. Change it using -i.\n"
 "  --lru-test <keys>  Simulate a cache workload with an 80-20 distribution.\n"
-"  --slave            Simulate a slave showing commands received from the master.\n"
 "  --rdb <filename>   Transfer an RDB dump from remote server to local file.\n"
 "  --pipe             Transfer raw Redis protocol from stdin to server.\n"
 "  --pipe-timeout <n> In --pipe mode, abort with error if after sending all data.\n"
@@ -938,78 +923,6 @@ static int issueCommandRepeat(int argc, char **argv, PORT_LONG repeat) {
 
 static int issueCommand(int argc, char **argv) {
     return issueCommandRepeat(argc, argv, config.repeat);
-}
-
-static void repl(void) {
-    sds historyfile = NULL;
-    int history = 0;
-    char *line;
-    int argc;
-    sds *argv;
-
-    config.interactive = 1;
-    linenoiseSetMultiLine(1);
-    linenoiseSetCompletionCallback(completionCallback);
-
-    /* Only use history when stdin is a tty. */
-    if (isatty(fileno(stdin))) {
-        historyfile = getHistoryPath();
-        if (historyfile != NULL) {
-            history = 1;
-            linenoiseHistoryLoad(historyfile);
-        }
-    }
-
-    cliRefreshPrompt();
-    while((line = linenoise(context ? config.prompt : "not connected> ")) != NULL) {
-        if (line[0] != '\0') {
-            argv = sdssplitargs(line,&argc);
-            if (history) linenoiseHistoryAdd(line);
-            if (historyfile) linenoiseHistorySave(historyfile);
-
-            if (argv == NULL) {
-                printf("Invalid argument(s)\n");
-                free(line);
-                continue;
-            } else if (argc > 0) {
-                if (strcasecmp(argv[0],"quit") == 0 ||
-                    strcasecmp(argv[0],"exit") == 0)
-                {
-                    exit(0);
-                } else if (argc == 3 && !strcasecmp(argv[0],"connect")) {
-                    sdsfree(config.hostip);
-                    config.hostip = sdsnew(argv[1]);
-                    config.hostport = atoi(argv[2]);
-                    cliRefreshPrompt();
-                    cliConnect(1);
-                } else if (argc == 1 && !strcasecmp(argv[0],"clear")) {
-                    linenoiseClearScreen();
-                } else {
-                    PORT_LONGLONG start_time = mstime(), elapsed;
-                    int repeat, skipargs = 0;
-
-                    repeat = atoi(argv[0]);
-                    if (argc > 1 && repeat) {
-                        skipargs = 1;
-                    } else {
-                        repeat = 1;
-                    }
-
-                    issueCommandRepeat(argc-skipargs, argv+skipargs, repeat);
-
-                    elapsed = mstime()-start_time;
-                    if (elapsed >= 500) {
-                        printf("(%.2fs)\n",(double)elapsed/1000);
-                    }
-                }
-            }
-            /* Free the argument vector */
-            sdsfreesplitres(argv,argc);
-        }
-        /* linenoise() returns malloc-ed lines like readline() */
-        free(line);
-    }
-    exit(0);
 }
 
 static int noninteractive(int argc, char **argv) {
@@ -1251,34 +1164,6 @@ PORT_ULONGLONG sendSync(int fd) {
         exit(1);
     }
     return strtoull(buf+1,NULL,10);
-}
-
-static void slaveMode(void) {
-    int fd = context->fd;
-    PORT_ULONGLONG payload = sendSync(fd);
-    char buf[1024];
-    int original_output = config.output;
-
-    fprintf(stderr,"SYNC with master, discarding %llu "
-                   "bytes of bulk transfer...\n", payload);
-
-    /* Discard the payload. */
-    while(payload) {
-        ssize_t nread;
-
-        nread = read(fd,buf,(payload > sizeof(buf)) ? sizeof(buf) : payload);
-        if (nread <= 0) {
-            fprintf(stderr,"Error reading RDB payload while SYNCing\n");
-            exit(1);
-        }
-        payload -= nread;
-    }
-    fprintf(stderr,"SYNC done. Logging commands from master.\n");
-
-    /* Now we can use hiredis to read the incoming protocol. */
-    config.output = OUTPUT_CSV;
-    while (cliReadReply(0) == REDIS_OK);
-    config.output = original_output;
 }
 
 /*------------------------------------------------------------------------------
@@ -2135,7 +2020,6 @@ int main(int argc, char **argv) {
     config.latency_history = 0;
     config.lru_test_mode = 0;
     config.lru_test_sample_size = 0;
-    config.slave_mode = 0;
     config.getrdb_mode = 0;
     config.stat_mode = 0;
     config.scan_mode = 0;
@@ -2173,12 +2057,6 @@ int main(int argc, char **argv) {
     if (config.latency_dist_mode) {
         if (cliConnect(0) == REDIS_ERR) exit(1);
         latencyDistMode();
-    }
-
-    /* Slave mode */
-    if (config.slave_mode) {
-        if (cliConnect(0) == REDIS_ERR) exit(1);
-        slaveMode();
     }
 
     /* Get RDB mode. */
@@ -2229,7 +2107,7 @@ int main(int argc, char **argv) {
         /* Note that in repl mode we don't abort on connection error.
          * A new attempt will be performed for every command send. */
         cliConnect(0);
-        repl();
+        //repl();
     }
 
     /* Otherwise, we have some arguments to execute */

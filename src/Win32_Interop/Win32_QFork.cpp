@@ -163,7 +163,6 @@ struct QForkInfo {
 
 extern "C"
 {
-    int checkForSentinelMode(int argc, char **argv);
     void InitTimeFunctions();
     PORT_LONGLONG memtoll(const char *p, int *err);     // Forward def from util.h
 
@@ -225,14 +224,13 @@ QForkControl* g_pQForkControl;
 HANDLE g_hQForkControlFileMap;
 HANDLE g_hForkedProcess = 0;
 int g_ChildExitCode = 0; // For child process
-BOOL g_SentinelMode;
 BOOL g_PersistenceDisabled;
-/* If g_IsForkedProcess || g_PersistenceDisabled || g_SentinelMode is true
+/* If g_IsForkedProcess || g_PersistenceDisabled is true
  * memory is not allocated from the memory map heap, instead the system heap
  * is used */
 BOOL g_BypassMemoryMapOnAlloc;
-/* g_HasMemoryMappedHeap is true if g_PersistenceDisabled and g_SentinelMode
- * are both false, so it is true for the parent process and the child process
+/* g_HasMemoryMappedHeap is true if g_PersistenceDisabled
+ * are false, so it is true for the parent process and the child process
  * when persistence is available */
 BOOL g_HasMemoryMappedHeap;
 
@@ -344,30 +342,6 @@ BOOL QForkChildInit(HANDLE QForkControlMemoryMapHandle, DWORD ParentProcessID) {
                                          aof_pipe_read_data,
                                          aof_pipe_write_ack
                                          );
-        } else if (g_pQForkControl->typeOfOperation == OperationType::otSocket) {
-            LPWSAPROTOCOL_INFO lpProtocolInfo = (LPWSAPROTOCOL_INFO) g_pQForkControl->globalData.protocolInfo;
-            int pipe_write_fd = FDAPI_open_osfhandle((intptr_t) g_pQForkControl->globalData.pipe_write_handle, _O_APPEND);
-            int* fds = (int*) malloc(sizeof(int) * g_pQForkControl->globalData.numfds);
-            for (int i = 0; i < g_pQForkControl->globalData.numfds; i++) {
-                fds[i] = FDAPI_WSASocket(FROM_PROTOCOL_INFO,
-                                         FROM_PROTOCOL_INFO,
-                                         FROM_PROTOCOL_INFO,
-                                         &lpProtocolInfo[i],
-                                         0,
-                                         WSA_FLAG_OVERLAPPED);
-            }
-
-            g_ChildExitCode = do_socketSave(fds,
-                                            g_pQForkControl->globalData.numfds,
-                                            g_pQForkControl->globalData.clientids,
-                                            pipe_write_fd);
-            // After the socket replication has finished, close the duplicated sockets.
-            // Failing to close the sockets properly will produce a socket read error
-            // on both the parent process and the slave.
-            for (int i = 0; i < g_pQForkControl->globalData.numfds; i++) {
-                FDAPI_CloseDuplicatedSocket(fds[i]);
-            }
-            free(fds);
         } else {
             throw runtime_error("unexpected operation type");
         }
@@ -1145,14 +1119,11 @@ BOOL IsForkedProcess() {
 }
 
 void SetupQForkGlobals(int argc, char* argv[]) {
-    // To check sentinel mode we use the antirez code to avoid duplicating code
-    g_SentinelMode = checkForSentinelMode(argc, argv);
-
     g_IsForkedProcess = IsForkedProcess();
     g_PersistenceDisabled = IsPersistenceDisabled();
 
-    g_BypassMemoryMapOnAlloc = g_IsForkedProcess || g_PersistenceDisabled || g_SentinelMode;
-    g_HasMemoryMappedHeap = !g_PersistenceDisabled && !g_SentinelMode;
+    g_BypassMemoryMapOnAlloc = g_IsForkedProcess || g_PersistenceDisabled;
+    g_HasMemoryMappedHeap = !g_PersistenceDisabled;
 }
 
 extern "C"
@@ -1233,7 +1204,7 @@ extern "C"
 #elif USE_JEMALLOC
             je_init();
 #endif
-            if (g_PersistenceDisabled || g_SentinelMode) {
+            if (g_PersistenceDisabled) {
                 return redis_main(argc, argv);
             } else {
                 StartupStatus status = QForkStartup();

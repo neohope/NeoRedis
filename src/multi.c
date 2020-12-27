@@ -107,7 +107,7 @@ void execCommandPropagateMulti(redisClient *c) {
     robj *multistring = createStringObject("MULTI",5);
 
     propagate(server.multiCommand,c->db->id,&multistring,1,
-              REDIS_PROPAGATE_AOF|REDIS_PROPAGATE_REPL);
+              REDIS_PROPAGATE_AOF);
     decrRefCount(multistring);
 }
 
@@ -172,13 +172,7 @@ void execCommand(redisClient *c) {
     if (must_propagate) server.dirty++;
 
 handle_monitor:
-    /* Send EXEC to clients waiting data from MONITOR. We do it here
-     * since the natural order of commands execution is actually:
-     * MUTLI, EXEC, ... commands inside transaction ...
-     * Instead EXEC is flagged as REDIS_CMD_SKIP_MONITOR in the command
-     * table, and we do it here with correct ordering. */
-    if (listLength(server.monitors) && !server.loading)
-        replicationFeedMonitors(c,server.monitors,c->db->id,c->argv,c->argc);
+	;
 }
 
 /* ===================== WATCH (CAS alike for MULTI/EXEC) ===================

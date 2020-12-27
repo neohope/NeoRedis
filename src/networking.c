@@ -109,13 +109,6 @@ redisClient *createClient(int fd) {
     c->flags = 0;
     c->ctime = c->lastinteraction = server.unixtime;
     c->authenticated = 0;
-    c->replstate = REDIS_REPL_NONE;
-    c->repl_put_online_on_ack = 0;
-    c->reploff = 0;
-    c->repl_ack_off = 0;
-    c->repl_ack_time = 0;
-    c->slave_listening_port = 0;
-    c->slave_capa = SLAVE_CAPA_NONE;
     c->reply = listCreate();
     c->reply_bytes = 0;
     c->obuf_soft_limit_reached_time = 0;
@@ -125,8 +118,6 @@ redisClient *createClient(int fd) {
     c->bpop.timeout = 0;
     c->bpop.keys = dictCreate(&setDictType,NULL);
     c->bpop.target = NULL;
-    c->bpop.numreplicas = 0;
-    c->bpop.reploffset = 0;
     c->woff = 0;
     c->watched_keys = listCreate();
     c->peerid = NULL;
@@ -158,19 +149,11 @@ redisClient *createClient(int fd) {
  * data to the clients output buffers. If the function returns REDIS_ERR no
  * data should be appended to the output buffers. */
 int prepareClientToWrite(redisClient *c) {
-
-    /* Masters don't receive replies, unless REDIS_MASTER_FORCE_REPLY flag
-     * is set. */
-    if ((c->flags & REDIS_MASTER) &&
-        !(c->flags & REDIS_MASTER_FORCE_REPLY)) return REDIS_ERR;
-
     if (c->fd <= 0) return REDIS_ERR; /* Fake client for AOF loading. */
 
     /* Only install the handler if not already installed and, in case of
      * slaves, if the client can actually receive writes. */
-    if (c->bufpos == 0 && listLength(c->reply) == 0 &&
-        (c->replstate == REDIS_REPL_NONE ||
-         (c->replstate == REDIS_REPL_ONLINE && !c->repl_put_online_on_ack)))
+    if (c->bufpos == 0 && listLength(c->reply) == 0)
     {
         /* Try to install the write handler. */
         if (aeCreateFileEvent(server.el, c->fd, AE_WRITABLE,
@@ -667,44 +650,11 @@ static void freeClientArgv(redisClient *c) {
     c->cmd = NULL;
 }
 
-/* Close all the slaves connections. This is useful in chained replication
- * when we resync with our own master and want to force all our slaves to
- * resync with us as well. */
-void disconnectSlaves(void) {
-    while (listLength(server.slaves)) {
-        listNode *ln = listFirst(server.slaves);
-        freeClient((redisClient*)ln->value);
-    }
-}
-
 void freeClient(redisClient *c) {
     listNode *ln;
 
     /* If this is marked as current client unset it */
     if (server.current_client == c) server.current_client = NULL;
-
-    /* If it is our master that's beging disconnected we should make sure
-     * to cache the state to try a partial resynchronization later.
-     *
-     * Note that before doing this we make sure that the client is not in
-     * some unexpected state, by checking its flags. */
-    if (server.master && c->flags & REDIS_MASTER) {
-        redisLog(REDIS_WARNING,"Connection with master lost.");
-        if (!(c->flags & (REDIS_CLOSE_AFTER_REPLY|
-                          REDIS_CLOSE_ASAP|
-                          REDIS_BLOCKED|
-                          REDIS_UNBLOCKED)))
-        {
-            replicationCacheMaster(c);
-            return;
-        }
-    }
-
-    /* Log link disconnection with slave */
-    if ((c->flags & REDIS_SLAVE) && !(c->flags & REDIS_MONITOR)) {
-        redisLog(REDIS_WARNING,"Connection with slave %s lost.",
-            replicationGetSlaveName(c));
-    }
 
     /* Free the query buffer */
     sdsfree(c->querybuf);
@@ -742,35 +692,6 @@ void freeClient(redisClient *c) {
         redisAssert(ln != NULL);
         listDelNode(server.unblocked_clients,ln);
     }
-
-    /* Master/slave cleanup Case 1:
-     * we lost the connection with a slave. */
-    if (c->flags & REDIS_SLAVE) {
-        if (c->replstate == REDIS_REPL_SEND_BULK) {
-#ifdef _WIN32
-            if (c->repldbfd != -1) {
-                DeleteFileA(c->replFileCopy);
-                memset(c->replFileCopy, 0, MAX_PATH);
-            }
-#endif
-            if (c->repldbfd != -1) close(c->repldbfd);
-            if (c->replpreamble) sdsfree(c->replpreamble);
-        }
-        list *l = (c->flags & REDIS_MONITOR) ? server.monitors : server.slaves;
-        ln = listSearchKey(l,c);
-        redisAssert(ln != NULL);
-        listDelNode(l,ln);
-        /* We need to remember the time when we started to have zero
-         * attached slaves, as after some time we'll free the replication
-         * backlog. */
-        if (c->flags & REDIS_SLAVE && listLength(server.slaves) == 0)
-            server.repl_no_slaves_since = server.unixtime;
-        refreshGoodSlavesCount();
-    }
-
-    /* Master/slave cleanup Case 2:
-     * we lost the connection with the master. */
-    if (c->flags & REDIS_MASTER) replicationHandleMasterDisconnection();
 
     /* If this client was scheduled for async freeing we need to remove it
      * from the queue. */
@@ -920,13 +841,6 @@ void sendReplyToClient(aeEventLoop *el, int fd, void *privdata, int mask) {
             (server.maxmemory == 0 ||
              zmalloc_used_memory() < server.maxmemory)) break;
     }
-    if (totwritten > 0) {
-        /* For clients representing masters we don't count sending data
-        * as an interaction, since we always send REPLCONF ACK commands
-        * that take some time to just fill the socket output buffer.
-        * We just rely on data / pings received for timeout detection. */
-        if (!(c->flags & REDIS_MASTER)) c->lastinteraction = server.unixtime;
-    }
 }
 #else
 void sendReplyToClient(aeEventLoop *el, int fd, void *privdata, int mask) {
@@ -1055,12 +969,6 @@ int processInlineBuffer(redisClient *c) {
         setProtocolError(c,0);
         return REDIS_ERR;
     }
-
-    /* Newline from slaves can be used to refresh the last ACK time.
-     * This is useful for a slave to ping back while loading a big
-     * RDB file. */
-    if (querylen == 0 && c->flags & REDIS_SLAVE)
-        c->repl_ack_time = server.unixtime;
 
     /* Leave data after the first line of the query in the buffer */
     sdsrange(c->querybuf,(int)(querylen+2),-1);                                 WIN_PORT_FIX /* cast (int) */
@@ -1239,7 +1147,7 @@ void processInputBuffer(redisClient *c) {
     /* Keep processing while there is something in the input buffer */
     while(sdslen(c->querybuf)) {
         /* Return if clients are paused. */
-        if (!(c->flags & REDIS_SLAVE) && clientsArePaused()) return;
+        if (clientsArePaused()) return;
 
         /* Immediately abort if the client is in the middle of something. */
         if (c->flags & REDIS_BLOCKED) return;
@@ -1321,7 +1229,6 @@ void readQueryFromClient(aeEventLoop *el, int fd, void *privdata, int mask) {
     if (nread) {
         sdsIncrLen(c->querybuf,nread);
         c->lastinteraction = server.unixtime;
-        if (c->flags & REDIS_MASTER) c->reploff += nread;
         server.stat_net_input_bytes += nread;
     } else {
         server.current_client = NULL;
@@ -1420,13 +1327,6 @@ sds catClientInfoString(sds s, redisClient *client) {
     int emask;
 
     p = flags;
-    if (client->flags & REDIS_SLAVE) {
-        if (client->flags & REDIS_MONITOR)
-            *p++ = 'O';
-        else
-            *p++ = 'S';
-    }
-    if (client->flags & REDIS_MASTER) *p++ = 'M';
     if (client->flags & REDIS_MULTI) *p++ = 'x';
     if (client->flags & REDIS_BLOCKED) *p++ = 'b';
     if (client->flags & REDIS_DIRTY_CAS) *p++ = 'd';
@@ -1548,9 +1448,7 @@ void clientCommand(redisClient *c) {
         while ((ln = listNext(&li)) != NULL) {
             client = listNodeValue(ln);
             if (addr && strcmp(getClientPeerId(client),addr) != 0) continue;
-            if (type != -1 &&
-                (client->flags & REDIS_MASTER ||
-                 getClientType(client) != type)) continue;
+            if (type != -1 && getClientType(client) != type) continue;
             if (id != 0 && client->id != id) continue;
             if (c == client && skipme) continue;
 
@@ -1696,8 +1594,6 @@ PORT_ULONG getClientOutputBufferMemoryUsage(redisClient *c) {
  * REDIS_CLIENT_TYPE_SLAVE  -> Slave or client executing MONITOR command
  */
 int getClientType(redisClient *c) {
-    if ((c->flags & REDIS_SLAVE) && !(c->flags & REDIS_MONITOR))
-        return REDIS_CLIENT_TYPE_SLAVE;
     return REDIS_CLIENT_TYPE_NORMAL;
 }
 
@@ -1772,33 +1668,6 @@ void asyncCloseClientOnOutputBufferLimitReached(redisClient *c) {
     }
 }
 
-/* Helper function used by freeMemoryIfNeeded() in order to flush slaves
- * output buffers without returning control to the event loop. */
-void flushSlavesOutputBuffers(void) {
-    listIter li;
-    listNode *ln;
-
-    listRewind(server.slaves,&li);
-    while((ln = listNext(&li))) {
-        redisClient *slave = listNodeValue(ln);
-        int events;
-
-        /* Note that the following will not flush output buffers of slaves
-         * in STATE_ONLINE but having put_online_on_ack set to true: in this
-         * case the writable event is never installed, since the purpose
-         * of put_online_on_ack is to postpone the moment it is installed.
-         * This is what we want since slaves in this state should not receive
-         * writes before the first ACK. */
-        events = aeGetFileEvents(server.el,slave->fd);
-        if (events & AE_WRITABLE &&
-            slave->replstate == REDIS_REPL_ONLINE &&
-            listLength(slave->reply))
-        {
-            sendReplyToClient(server.el,slave->fd,slave,0);
-        }
-    }
-}
-
 /* Pause clients up to the specified unixtime (in ms). While clients
  * are paused no command is processed from clients, so the data set can't
  * change during that time.
@@ -1839,7 +1708,7 @@ int clientsArePaused(void) {
 
             /* Don't touch slaves and blocked clients. The latter pending
              * requests be processed when unblocked. */
-            if (c->flags & (REDIS_SLAVE|REDIS_BLOCKED)) continue;
+            if (c->flags & REDIS_BLOCKED) continue;
             c->flags |= REDIS_UNBLOCKED;
             listAddNodeTail(server.unblocked_clients,c);
         }

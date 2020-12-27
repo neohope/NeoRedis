@@ -579,9 +579,6 @@ struct redisClient *createFakeClient(void) {
     c->bufpos = 0;
     c->flags = 0;
     c->btype = REDIS_BLOCKED_NONE;
-    /* We set the fake client as a slave waiting for the synchronization
-     * so that Redis will not try to send replies to this client. */
-    c->replstate = REDIS_REPL_WAIT_BGSAVE_START;
     c->reply = listCreate();
     c->reply_bytes = 0;
     c->obuf_soft_limit_reached_time = 0;
@@ -1355,7 +1352,6 @@ int rewriteAppendOnlyFileBackground(void) {
          * accumulated by the parent into server.aof_rewrite_buf will start
          * with a SELECT statement and it will be safe to merge. */
         server.aof_selected_db = -1;
-        replicationScriptCacheFlush();
         return REDIS_OK;
 #ifndef _WIN32
     }

@@ -271,82 +271,6 @@ public:
 
 static BindParams bp = BindParams();
 
-typedef class SentinelParams : public  ParamExtractor {
-private:
-    RedisParamterMapper subCommands;
-
-public:
-    SentinelParams() {
-        subCommands = RedisParamterMapper
-        {
-            { "monitor",                    &fp4 },    // sentinel monitor [master name] [ip] [port] [quorum]
-            { "auth-pass",                  &fp2 },    // sentinel auth-pass [master name] [password]
-            { "down-after-milliseconds",    &fp2 },    // sentinel down-after-milliseconds [master name] [milliseconds]
-            { "parallel-syncs",             &fp2 },    // sentinel parallel-syncs [master name] [number]
-            { "failover-timeout",           &fp2 },    // sentinel failover-timeout [master name] [number]
-            { "notification-script",        &fp2 },    // sentinel notification-script [master name] [scriptPath]
-            { "client-reconfig-script",     &fp2 },    // sentinel client-reconfig-script [master name] [scriptPath]
-            { "config-epoch",               &fp2 },    // sentinel config-epoch [name] [epoch]
-            { "current-epoch",              &fp1 },    // sentinel current-epoch <epoch>
-            { "leader-epoch",               &fp2 },    // sentinel leader-epoch [name] [epoch]
-            { "known-slave",                &fp3 },    // sentinel known-slave <name> <ip> <port>
-            { "known-sentinel",             &fp4 },    // sentinel known-sentinel <name> <ip> <port> [runid]
-            { "announce-ip",                &fp1 },    // sentinel announce-ip <ip>
-            { "announce-port",              &fp1 }     // sentinel announce-port <port>
-        };
-    }
-
-    vector<string> Extract(int argStartIndex, int argc, char** argv) {
-        stringstream err;
-        if (argStartIndex + 1 >= argc) {
-            err << "Not enough parameters available for " << argv[argStartIndex];
-            throw invalid_argument(err.str());
-        }
-        if (subCommands.find(argv[argStartIndex + 1]) == subCommands.end()) {
-            err << "Could not find sentinal subcommand " << argv[argStartIndex + 1];
-            throw invalid_argument(err.str());
-        }
-
-        vector<string> params;
-        params.push_back(argv[argStartIndex + 1]);
-        vector<string> subParams = subCommands[argv[argStartIndex + 1]]->Extract(argStartIndex + 1, argc, argv);
-		for (string p : subParams) {
-            transform(p.begin(), p.end(), p.begin(), ::tolower);
-            p = stripQuotes(p);
-            params.push_back(p);
-        }
-        return params;
-    }
-
-    vector<string> Extract(vector<string> tokens, int startIndex = 0) {
-        stringstream err;
-        if (tokens.size() < 2) {
-            err << "Not enough parameters available for " << tokens.at(0);
-            throw invalid_argument(err.str());
-        }
-        string subcommand = tokens.at(startIndex + 1);
-        if (subCommands.find(subcommand) == subCommands.end()) {
-            err << "Could not find sentinal subcommand " << subcommand;
-            throw invalid_argument(err.str());
-        }
-
-        vector<string> params;
-        params.push_back(subcommand);
-
-        vector<string> subParams = subCommands[subcommand]->Extract(tokens, startIndex + 1);
-
-        for (string p : subParams) {
-            transform(p.begin(), p.end(), p.begin(), ::tolower);
-            p = stripQuotes(p);
-            params.push_back(p);
-        }
-        return params;
-    };
-
-} SentinelParams;
-
-static SentinelParams sp = SentinelParams();
-
 // Map of argument name to argument processing engine.
 static RedisParamterMapper g_redisArgMap =
 {
@@ -383,20 +307,6 @@ static RedisParamterMapper g_redisArgMap =
     { "rdbchecksum",                    &fp1 },    // rdbchecksum [yes/no]
     { "dbfilename",                     &fp1 },    // dbfilename [filename]
     { cDir,                             &fp1 },    // dir [path]
-    { "slaveof",                        &fp2 },    // slaveof [masterip] [master port] 
-    { "masterauth",                     &fp1 },    // masterauth [master-password]
-    { "slave-serve-stale-data",         &fp1 },    // slave-serve-stale-data [yes/no]
-    { "slave-read-only",                &fp1 },    // slave-read-only [yes/no]
-    { "repl-ping-slave-period",         &fp1 },    // repl-ping-slave-period [number]
-    { "repl-timeout",                   &fp1 },    // repl-timeout [number]
-    { "repl-disable-tcp-nodelay",       &fp1 },    // repl-disable-tcp-nodelay [yes/no]
-    { "repl-diskless-sync",             &fp1 },    // repl-diskless-sync [yes/no]
-    { "repl-diskless-sync-delay",       &fp1 },    // repl-diskless-sync-delay [number]
-    { "repl-backlog-size",              &fp1 },    // repl-backlog-size [number]
-    { "repl-backlog-ttl",               &fp1 },    // repl-backlog-ttl [number]
-    { "slave-priority",                 &fp1 },    // slave-priority [number]
-    { "min-slaves-to-write",            &fp1 },    // min-slaves-to-write [number]
-    { "min-slaves-max-lag",             &fp1 },    // min-slaves-max-lag [number]
     { "requirepass",                    &fp1 },    // requirepass [string]
     { "rename-command",                 &fp2 },    // rename-command [command] [string]
     { "maxclients",                     &fp1 },    // maxclients [number]
@@ -427,9 +337,6 @@ static RedisParamterMapper g_redisArgMap =
     { "aof-load-truncated",             &fp1 },    // aof-load-truncated [yes/no]
     { "latency-monitor-threshold",      &fp1 },    // latency-monitor-threshold [number]
     { cInclude,                         &fp1 },    // include [path]
-
-    // sentinel commands
-    { "sentinel",                       &sp }
 };
 
 std::vector<std::string> &split(const std::string &s, char delim, std::vector<std::string> &elems) {
@@ -548,8 +455,6 @@ void ParseConfFile(string confFile, string cwd, ArgumentMap& argMap) {
 }
 
 vector<string> incompatibleNoPersistenceCommands{
-    "min_slaves_towrite",
-    "min_slaves_max_lag",
     "appendonly",
     "appendfilename",
     "appendfsync",
@@ -606,17 +511,7 @@ void ParseCommandLineArguments(int argc, char** argv) {
                 }
 
                 vector<string> params;
-                if (argument == cSentinel) {
-                    try {
-                        vector<string> sentinelSubCommands = g_redisArgMap[argument]->Extract(n, argc, argv);
-                        for (auto p : sentinelSubCommands) {
-                            params.push_back(p);
-                        }
-                    }
-                    catch (invalid_argument iaerr) {
-                        // if no subcommands could be mapped, then assume this is the parameterless --sentinel command line only argument
-                    }
-                } else if (argument == cServiceRun) {
+                if (argument == cServiceRun) {
                     // When the service starts the current directory is %systemdir%. This needs to be changed to the 
                     // directory the executable is in so that the .conf file can be loaded.
                     char szFilePath[MAX_PATH];

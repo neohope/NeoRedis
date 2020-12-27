@@ -214,10 +214,8 @@
     <ClCompile Include="..\src\rdb.c" />
     <ClCompile Include="..\src\redis.c" />
     <ClCompile Include="..\src\release.c" />
-    <ClCompile Include="..\src\replication.c" />
     <ClCompile Include="..\src\rio.c" />
     <ClCompile Include="..\src\sds.c" />
-    <ClCompile Include="..\src\sentinel.c" />
     <ClCompile Include="..\src\sha1.c" />
     <ClCompile Include="..\src\slowlog.c" />
     <ClCompile Include="..\src\sort.c" />

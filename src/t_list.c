@@ -881,7 +881,7 @@ int serveClientBlockedOnList(redisClient *receiver, robj *key, robj *dstkey, red
         argv[1] = key;
         propagate((where == REDIS_HEAD) ?
             server.lpopCommand : server.rpopCommand,
-            db->id,argv,2,REDIS_PROPAGATE_AOF|REDIS_PROPAGATE_REPL);
+            db->id,argv,2,REDIS_PROPAGATE_AOF);
 
         /* BRPOP/BLPOP */
         addReplyMultiBulkLen(receiver,2);
@@ -899,8 +899,7 @@ int serveClientBlockedOnList(redisClient *receiver, robj *key, robj *dstkey, red
             argv[1] = key;
             propagate(server.rpopCommand,
                 db->id,argv,2,
-                REDIS_PROPAGATE_AOF|
-                REDIS_PROPAGATE_REPL);
+                REDIS_PROPAGATE_AOF);
             rpoplpushHandlePush(receiver,dstkey,dstobj,
                 value);
             /* Propagate the LPUSH operation. */
@@ -909,8 +908,7 @@ int serveClientBlockedOnList(redisClient *receiver, robj *key, robj *dstkey, red
             argv[2] = value;
             propagate(server.lpushCommand,
                 db->id,argv,3,
-                REDIS_PROPAGATE_AOF|
-                REDIS_PROPAGATE_REPL);
+                REDIS_PROPAGATE_AOF);
         } else {
             /* BRPOPLPUSH failed because of wrong
              * destination type. */
