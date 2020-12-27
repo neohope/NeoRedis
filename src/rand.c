@@ -2,8 +2,8 @@
  * function obtained from pysam source code.
  *
  * This functions are used in order to replace the default math.random()
- * Lua implementation with something having exactly the same behavior
- * across different systems (by default Lua uses libc's rand() that is not
+ * Script[Removed] implementation with something having exactly the same behavior
+ * across different systems (by default Script uses libc's rand() that is not
  * required to implement a specific PRNG generating the same sequence
  * in different systems if seeded with the same integer).
  *

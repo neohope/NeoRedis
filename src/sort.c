@@ -293,7 +293,7 @@ void sortCommand(redisClient *c) {
      * scripting and replication. */
     if (dontsort &&
         sortval->type == REDIS_SET &&
-        (storekey || c->flags & REDIS_LUA_CLIENT))
+		storekey)
     {
         /* Force ALPHA sorting */
         dontsort = 0;

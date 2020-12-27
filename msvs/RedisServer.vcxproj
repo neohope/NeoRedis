@@ -220,7 +220,6 @@
     <ClCompile Include="..\src\release.c" />
     <ClCompile Include="..\src\replication.c" />
     <ClCompile Include="..\src\rio.c" />
-    <ClCompile Include="..\src\scripting.c" />
     <ClCompile Include="..\src\sds.c" />
     <ClCompile Include="..\src\sentinel.c" />
     <ClCompile Include="..\src\sha1.c" />
@@ -280,9 +279,6 @@
     </ProjectReference>
     <ProjectReference Include="hiredis\hiredis.vcxproj">
       <Project>{13e85053-54b3-487b-8ddb-3430b1c1b3bf}</Project>
-    </ProjectReference>
-    <ProjectReference Include="lua\lua\lua.vcxproj">
-      <Project>{170b0909-5f75-467f-9501-c99dec16c6dc}</Project>
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>

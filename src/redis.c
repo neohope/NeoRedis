@@ -276,10 +276,7 @@ struct redisCommand redisCommandTable[] = {
     {"dump",dumpCommand,2,"r",0,NULL,1,1,1,0,0},
     {"object",objectCommand,3,"r",0,NULL,2,2,2,0,0},
     {"client",clientCommand,-2,"rs",0,NULL,0,0,0,0,0},
-    {"eval",evalCommand,-3,"s",0,evalGetKeys,0,0,0,0,0},
-    {"evalsha",evalShaCommand,-3,"s",0,evalGetKeys,0,0,0,0,0},
     {"slowlog",slowlogCommand,-2,"r",0,NULL,0,0,0,0,0},
-    {"script",scriptCommand,-2,"rs",0,NULL,0,0,0,0,0},
     {"time",timeCommand,1,"rRF",0,NULL,0,0,0,0,0},
     {"bitop",bitopCommand,-4,"wm",0,NULL,2,-1,1,0,0},
     {"bitcount",bitcountCommand,-2,"r",0,NULL,1,1,1,0,0},
@@ -1517,10 +1514,6 @@ void initServerConfig(void) {
     server.cluster_slave_validity_factor = REDIS_CLUSTER_DEFAULT_SLAVE_VALIDITY;
     server.cluster_require_full_coverage = REDIS_CLUSTER_DEFAULT_REQUIRE_FULL_COVERAGE;
     server.cluster_configfile = zstrdup(REDIS_DEFAULT_CLUSTER_CONFIG_FILE);
-    server.lua_caller = NULL;
-    server.lua_time_limit = REDIS_LUA_TIME_LIMIT;
-    server.lua_client = NULL;
-    server.lua_timedout = 0;
     server.migrate_cached_sockets = dictCreate(&migrateCacheDictType,NULL);
     server.next_client_id = 1; /* Client IDs, start from 1 .*/
     server.loading_process_events_interval_bytes = (1024*1024*2);
@@ -1943,7 +1936,6 @@ void initServer(void) {
 
     if (server.cluster_enabled) clusterInit();
     replicationScriptCacheInit();
-    scriptingInit();
     slowlogInit();
     latencyMonitorInit();
     bioInit();
@@ -2123,21 +2115,6 @@ void call(redisClient *c, int flags) {
     dirty = server.dirty-dirty;
     if (dirty < 0) dirty = 0;
 
-    /* When EVAL is called loading the AOF we don't want commands called
-     * from Lua to go into the slowlog or to populate statistics. */
-    if (server.loading && c->flags & REDIS_LUA_CLIENT)
-        flags &= ~(REDIS_CALL_SLOWLOG | REDIS_CALL_STATS);
-
-    /* If the caller is Lua, we want to force the EVAL caller to propagate
-     * the script if the command flag or client flag are forcing the
-     * propagation. */
-    if (c->flags & REDIS_LUA_CLIENT && server.lua_caller) {
-        if (c->flags & REDIS_FORCE_REPL)
-            server.lua_caller->flags |= REDIS_FORCE_REPL;
-        if (c->flags & REDIS_FORCE_AOF)
-            server.lua_caller->flags |= REDIS_FORCE_AOF;
-    }
-
     /* Log the command into the Slow log if needed, and populate the
      * per-command statistics that we show in INFO commandstats. */
     if (flags & REDIS_CALL_SLOWLOG && c->cmd->proc != execCommand) {
@@ -2232,8 +2209,6 @@ int processCommand(redisClient *c) {
      * 2) The command has no key arguments. */
     if (server.cluster_enabled &&
         !(c->flags & REDIS_MASTER) &&
-        !(c->flags & REDIS_LUA_CLIENT &&
-          server.lua_caller->flags & REDIS_MASTER) &&
         !(c->cmd->getkeys_proc == NULL && c->cmd->firstkey == 0))
     {
         int hashslot;
@@ -2337,22 +2312,6 @@ int processCommand(redisClient *c) {
      * REDIS_CMD_LOADING flag. */
     if (server.loading && !(c->cmd->flags & REDIS_CMD_LOADING)) {
         addReply(c, shared.loadingerr);
-        return REDIS_OK;
-    }
-
-    /* Lua script too slow? Only allow a limited number of commands. */
-    if (server.lua_timedout &&
-          c->cmd->proc != authCommand &&
-          c->cmd->proc != replconfCommand &&
-        !(c->cmd->proc == shutdownCommand &&
-          c->argc == 2 &&
-          tolower(((char*)c->argv[1]->ptr)[0]) == 'n') &&
-        !(c->cmd->proc == scriptCommand &&
-          c->argc == 2 &&
-          tolower(((char*)c->argv[1]->ptr)[0]) == 'k'))
-    {
-        flagTransaction(c);
-        addReply(c, shared.slowscripterr);
         return REDIS_OK;
     }
 
@@ -2784,7 +2743,6 @@ sds genRedisInfoString(char *section) {
             "used_memory_rss:%Iu\r\n"                                           WIN_PORT_FIX /* %zu -> %Iu */
             "used_memory_peak:%Iu\r\n"                                          WIN_PORT_FIX /* %zu -> %Iu */
             "used_memory_peak_human:%s\r\n"
-            "used_memory_lua:%lld\r\n"
             "mem_fragmentation_ratio:%.2f\r\n"
             "mem_allocator:%s\r\n",
             zmalloc_used,
@@ -2792,7 +2750,6 @@ sds genRedisInfoString(char *section) {
             server.resident_set_size,
             server.stat_peak_memory,
             peak_hmem,
-            ((PORT_LONGLONG)lua_gc(server.lua,LUA_GCCOUNT,0))*1024LL,
             zmalloc_get_fragmentation_ratio(server.resident_set_size),
             ZMALLOC_LIB
             );

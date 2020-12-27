@@ -409,7 +409,6 @@ static RedisParamterMapper g_redisArgMap =
     { "no-appendfsync-on-rewrite",      &fp1 },    // no-appendfsync-on-rewrite [value]
     { "auto-aof-rewrite-percentage",    &fp1 },    // auto-aof-rewrite-percentage [number]
     { "auto-aof-rewrite-min-size",      &fp1 },    // auto-aof-rewrite-min-size [number]
-    { "lua-time-limit",                 &fp1 },    // lua-time-limit [number]
     { "slowlog-log-slower-than",        &fp1 },    // slowlog-log-slower-than [number]
     { "slowlog-max-len",                &fp1 },    // slowlog-max-len [number]
     { "notify-keyspace-events",         &fp1 },    // notify-keyspace-events [string]

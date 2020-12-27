@@ -77,7 +77,7 @@ redisClient *createClient(int fd) {
     /* passing -1 as fd it is possible to create a non connected client.
      * This is useful since all the Redis commands needs to be executed
      * in the context of a client. When commands are executed in other
-     * contexts (for instance a Lua script) we need a non connected client. */
+     * contexts (for instance a script [Removed]) we need a non connected client. */
     if (fd != -1) {
         anetNonBlock(NULL,fd);
         anetEnableTcpNoDelay(NULL,fd);
@@ -162,9 +162,6 @@ redisClient *createClient(int fd) {
  * data to the clients output buffers. If the function returns REDIS_ERR no
  * data should be appended to the output buffers. */
 int prepareClientToWrite(redisClient *c) {
-    /* If it's the Lua client we always return ok without installing any
-     * handler since there is no socket at all. */
-    if (c->flags & REDIS_LUA_CLIENT) return REDIS_OK;
 
     /* Masters don't receive replies, unless REDIS_MASTER_FORCE_REPLY flag
      * is set. */
@@ -807,7 +804,7 @@ void freeClient(redisClient *c) {
  * a context where calling freeClient() is not possible, because the client
  * should be valid for the continuation of the flow of the program. */
 void freeClientAsync(redisClient *c) {
-    if (c->flags & REDIS_CLOSE_ASAP || c->flags & REDIS_LUA_CLIENT) return;
+    if (c->flags & REDIS_CLOSE_ASAP) return;
     c->flags |= REDIS_CLOSE_ASAP;
     listAddNodeTail(server.clients_to_close,c);
 }

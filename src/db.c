@@ -842,12 +842,12 @@ int expireIfNeeded(redisDb *db, robj *key) {
     /* Don't expire anything while loading. It will be done later. */
     if (server.loading) return 0;
 
-    /* If we are in the context of a Lua script, we claim that time is
-     * blocked to when the Lua script started. This way a key can expire
+    /* If we are in the context of a script[Removed], we claim that time is
+     * blocked to when the script started. This way a key can expire
      * only the first time it is accessed and not in the middle of the
      * script execution, making propagation to slaves / AOF consistent.
      * See issue #1525 on Github for more information. */
-    now = server.lua_caller ? server.lua_time_start : mstime();
+    now = mstime();
 
     /* If we are running in the context of a slave, return ASAP:
      * the slave key expiration is controlled by the master that will

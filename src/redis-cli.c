@@ -143,7 +143,6 @@ static struct config {
     int output; /* output mode, see OUTPUT_* defines */
     sds mb_delim;
     char prompt[128];
-    char *eval;
     int last_cmd_type;
 } config;
 
@@ -861,8 +860,6 @@ static int parseOptions(int argc, char **argv) {
             config.pipe_timeout = atoi(argv[++i]);
         } else if (!strcmp(argv[i],"--bigkeys")) {
             config.bigkeys = 1;
-        } else if (!strcmp(argv[i],"--eval") && !lastarg) {
-            config.eval = argv[++i];
         } else if (!strcmp(argv[i],"-c")) {
             config.cluster_mode = 1;
         } else if (!strcmp(argv[i],"-d") && !lastarg) {
@@ -944,7 +941,6 @@ static void usage(void) {
 "  --pattern <pat>    Useful with --scan to specify a SCAN pattern.\n"
 "  --intrinsic-latency <sec> Run a test to measure intrinsic system latency.\n"
 "                     The test will run for the specified amount of seconds.\n"
-"  --eval <file>      Send an EVAL command using the Lua script at <file>.\n"
 "  --help             Output this help and exit.\n"
 "  --version          Output version and exit.\n"
 "\n"
@@ -953,10 +949,7 @@ static void usage(void) {
 "  redis-cli get mypasswd\n"
 "  redis-cli -r 100 lpush mylist x\n"
 "  redis-cli -r 100 -i 1 info | grep used_memory_human:\n"
-"  redis-cli --eval myscript.lua key1 key2 , arg1 arg2 arg3\n"
 "  redis-cli --scan --pattern '*:12345*'\n"
-"\n"
-"  (Note: when using --eval the comma separates KEYS[] from ARGV[] items)\n"
 "\n"
 "When no command is given, redis-cli starts in interactive mode.\n"
 "Type \"help\" in interactive mode for information on available commands.\n"
@@ -1086,48 +1079,6 @@ static int noninteractive(int argc, char **argv) {
         retval = issueCommand(argc, argv);
     }
     return retval;
-}
-
-/*------------------------------------------------------------------------------
- * Eval mode
- *--------------------------------------------------------------------------- */
-
-static int evalMode(int argc, char **argv) {
-    sds script = sdsempty();
-    FILE *fp;
-    char buf[1024];
-    size_t nread;
-    char **argv2;
-    int j, got_comma = 0, keys = 0;
-
-    /* Load the script from the file, as an sds string. */
-    fp = fopen(config.eval,"r");
-    if (!fp) {
-        fprintf(stderr,
-            "Can't open file '%s': %s\n", config.eval, strerror(errno));
-        exit(1);
-    }
-    while((nread = fread(buf,1,sizeof(buf),fp)) != 0) {
-        script = sdscatlen(script,buf,nread);
-    }
-    fclose(fp);
-
-    /* Create our argument vector */
-    argv2 = zmalloc(sizeof(sds)*(argc+3));
-    argv2[0] = sdsnew("EVAL");
-    argv2[1] = script;
-    for (j = 0; j < argc; j++) {
-        if (!got_comma && argv[j][0] == ',' && argv[j][1] == 0) {
-            got_comma = 1;
-            continue;
-        }
-        argv2[j+3-got_comma] = sdsnew(argv[j]);
-        if (!got_comma) keys++;
-    }
-    argv2[2] = sdscatprintf(sdsempty(),"%d",keys);
-
-    /* Call it */
-    return issueCommand(argc+3-got_comma, argv2);
 }
 
 /*------------------------------------------------------------------------------
@@ -2255,7 +2206,6 @@ int main(int argc, char **argv) {
     config.bigkeys = 0;
     config.stdinarg = 0;
     config.auth = NULL;
-    config.eval = NULL;
     config.last_cmd_type = -1;
 
     spectrum_palette = spectrum_palette_color;
@@ -2331,7 +2281,7 @@ int main(int argc, char **argv) {
     if (config.intrinsic_latency_mode) intrinsicLatencyMode();
 
     /* Start interactive mode when no command is provided */
-    if (argc == 0 && !config.eval) {
+    if (argc == 0) {
         /* Ignore SIGPIPE in interactive mode to force a reconnect */
         signal(SIGPIPE, SIG_IGN);
 
@@ -2343,9 +2293,5 @@ int main(int argc, char **argv) {
 
     /* Otherwise, we have some arguments to execute */
     if (cliConnect(0) != REDIS_OK) exit(1);
-    if (config.eval) {
-        return evalMode(argc,argv);
-    } else {
-        return noninteractive(argc,convertToSds(argc,argv));
-    }
+    return noninteractive(argc,convertToSds(argc,argv));
 }

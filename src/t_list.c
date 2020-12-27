@@ -936,7 +936,7 @@ int serveClientBlockedOnList(redisClient *receiver, robj *key, robj *dstkey, red
 }
 
 /* This function should be called by Redis every time a single command,
- * a MULTI/EXEC block, or a Lua script, terminated its execution after
+ * a MULTI/EXEC block, or a script[Removed], terminated its execution after
  * being called by a client.
  *
  * All the keys with at least one client blocked that received at least

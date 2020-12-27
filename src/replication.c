@@ -274,9 +274,7 @@ void replicationFeedMonitors(redisClient *c, list *monitors, int dictid, robj **
 
     gettimeofday(&tv,NULL);
     cmdrepr = sdscatprintf(cmdrepr,"%ld.%06ld ",(PORT_LONG)tv.tv_sec,(PORT_LONG)tv.tv_usec);
-    if (c->flags & REDIS_LUA_CLIENT) {
-        cmdrepr = sdscatprintf(cmdrepr,"[%d lua] ",dictid);
-    } else if (c->flags & REDIS_UNIX_SOCKET) {
+    if (c->flags & REDIS_UNIX_SOCKET) {
         cmdrepr = sdscatprintf(cmdrepr,"[%d unix:%s] ",dictid,server.unixsocket);
     } else {
         cmdrepr = sdscatprintf(cmdrepr,"[%d %s] ",dictid,getClientPeerId(c));
@@ -501,7 +499,7 @@ need_full_resync:
  *    sync if the BGSAVE was succesfully started, or sending them an error
  *    and dropping them from the list of slaves.
  *
- * 2) Flush the Lua scripting script cache if the BGSAVE was actually
+ * 2) Flush the script[Removed] cache if the BGSAVE was actually
  *    started.
  *
  * Returns REDIS_OK on success or REDIS_ERR otherwise. */

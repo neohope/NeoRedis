@@ -55,7 +55,6 @@ POSIX_ONLY(#include <inttypes.h>)
 POSIX_ONLY(#include <pthread.h>)
 POSIX_ONLY(#include <syslog.h>)
 POSIX_ONLY(#include <netinet/in.h>)
-#include <lua.h>
 #include <signal.h>
 
 typedef PORT_LONGLONG mstime_t; /* millisecond time type. */
@@ -248,7 +247,6 @@ POSIX_ONLY(#define REDIS_MAX_LOGMSG_LEN    1024) /* Default maximum length of sy
 #define REDIS_CLOSE_AFTER_REPLY (1<<6) /* Close after writing entire reply. */
 #define REDIS_UNBLOCKED (1<<7) /* This client was unblocked and is stored in
                                   server.unblocked_clients */
-#define REDIS_LUA_CLIENT (1<<8) /* This is a non connected client used by Lua */
 #define REDIS_ASKING (1<<9)     /* Client issued the ASKING command */
 #define REDIS_CLOSE_ASAP (1<<10)/* Close this client ASAP */
 #define REDIS_UNIX_SOCKET (1<<11) /* Client connected via Unix domain socket */
@@ -367,9 +365,6 @@ POSIX_ONLY(#define REDIS_DEFAULT_VERBOSITY REDIS_NOTICE)
 #define REDIS_MAXMEMORY_ALLKEYS_RANDOM 4
 #define REDIS_MAXMEMORY_NO_EVICTION 5
 #define REDIS_DEFAULT_MAXMEMORY_POLICY REDIS_MAXMEMORY_NO_EVICTION
-
-/* Scripting */
-#define REDIS_LUA_TIME_LIMIT 5000 /* milliseconds */
 
 /* Units */
 #define UNIT_SECONDS 0
@@ -911,20 +906,7 @@ struct redisServer {
     int cluster_slave_validity_factor; /* Slave max data age for failover. */
     int cluster_require_full_coverage; /* If true, put the cluster down if
                                           there is at least an uncovered slot. */
-    /* Scripting */
-    lua_State *lua; /* The Lua interpreter. We use just one for all clients */
-    redisClient *lua_client;   /* The "fake client" to query Redis from Lua */
-    redisClient *lua_caller;   /* The client running EVAL right now, or NULL */
-    dict *lua_scripts;         /* A dictionary of SHA1 -> Lua scripts */
-    mstime_t lua_time_limit;  /* Script timeout in milliseconds */
-    mstime_t lua_time_start;  /* Start time of script, milliseconds time */
-    int lua_write_dirty;  /* True if a write command was called during the
-                             execution of the current script. */
-    int lua_random_dirty; /* True if a random command was called during the
-                             execution of the current script. */
-    int lua_timedout;     /* True if we reached the time limit for script
-                             execution. */
-    int lua_kill;         /* Kill the script if true. */
+    /* Scripting Removed*/
     /* Latency monitor */
     PORT_LONGLONG latency_monitor_threshold;
     dict *latency_events;
@@ -1393,9 +1375,6 @@ void sentinelTimer(void);
 char *sentinelHandleConfiguration(char **argv, int argc);
 void sentinelIsRunning(void);
 
-/* Scripting */
-void scriptingInit(void);
-
 /* Blocked clients */
 void processUnblockedClients(void);
 void blockClient(redisClient *c, int btype);
@@ -1553,9 +1532,6 @@ void readwriteCommand(redisClient *c);
 void dumpCommand(redisClient *c);
 void objectCommand(redisClient *c);
 void clientCommand(redisClient *c);
-void evalCommand(redisClient *c);
-void evalShaCommand(redisClient *c);
-void scriptCommand(redisClient *c);
 void timeCommand(redisClient *c);
 void bitopCommand(redisClient *c);
 void bitcountCommand(redisClient *c);
