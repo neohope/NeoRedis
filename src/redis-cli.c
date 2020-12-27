@@ -125,8 +125,6 @@ static struct config {
     int latency_history;
     int lru_test_mode;
     PORT_LONGLONG lru_test_sample_size;
-    int cluster_mode;
-    int cluster_reissue_command;
     int slave_mode;
     int pipe_mode;
     int pipe_timeout;
@@ -617,36 +615,6 @@ static int cliReadReply(int output_raw_strings) {
 
     config.last_cmd_type = reply->type;
 
-    /* Check if we need to connect to a different node and reissue the
-     * request. */
-    if (config.cluster_mode && reply->type == REDIS_REPLY_ERROR &&
-        (!strncmp(reply->str,"MOVED",5) || !strcmp(reply->str,"ASK")))
-    {
-        char *p = reply->str, *s;
-        int slot;
-
-        output = 0;
-        /* Comments show the position of the pointer as:
-         *
-         * [S] for pointer 's'
-         * [P] for pointer 'p'
-         */
-        s = strchr(p,' ');      /* MOVED[S]3999 127.0.0.1:6381 */
-        p = strchr(s+1,' ');    /* MOVED[S]3999[P]127.0.0.1:6381 */
-        *p = '\0';
-        slot = atoi(s+1);
-        s = strchr(p+1,':');    /* MOVED 3999[P]127.0.0.1[S]6381 */
-        *s = '\0';
-        sdsfree(config.hostip);
-        config.hostip = sdsnew(p+1);
-        config.hostport = atoi(s+1);
-        if (config.interactive)
-            printf("-> Redirected to slot [%d] located at %s:%d\n",
-                slot, config.hostip, config.hostport);
-        config.cluster_reissue_command = 1;
-        cliRefreshPrompt();
-    }
-
     if (output) {
         if (output_raw_strings) {
             out = cliFormatReplyRaw(reply);
@@ -687,9 +655,6 @@ static int cliSendCommand(int argc, char **argv, int repeat) {
 
     output_raw = 0;
     if (!strcasecmp(command,"info") ||
-        (argc == 2 && !strcasecmp(command,"cluster") &&
-                      (!strcasecmp(argv[1],"nodes") ||
-                       !strcasecmp(argv[1],"info"))) ||
         (argc == 2 && !strcasecmp(command,"client") &&
                        !strcasecmp(argv[1],"list")) ||
         (argc == 3 && !strcasecmp(command,"latency") &&
@@ -860,8 +825,6 @@ static int parseOptions(int argc, char **argv) {
             config.pipe_timeout = atoi(argv[++i]);
         } else if (!strcmp(argv[i],"--bigkeys")) {
             config.bigkeys = 1;
-        } else if (!strcmp(argv[i],"-c")) {
-            config.cluster_mode = 1;
         } else if (!strcmp(argv[i],"-d") && !lastarg) {
             sdsfree(config.mb_delim);
             config.mb_delim = sdsnew(argv[++i]);
@@ -918,7 +881,6 @@ static void usage(void) {
 "  -n <db>            Database number.\n"
 "  -x                 Read last argument from STDIN.\n"
 "  -d <delimiter>     Multi-bulk delimiter in for raw formatting (default: \\n).\n"
-"  -c                 Enable cluster mode (follow -ASK and -MOVED redirections).\n"
 "  --raw              Use raw formatting for replies (default when STDOUT is\n"
 "                     not a tty).\n"
 "  --no-raw           Force formatted output even when STDOUT is not a tty.\n"
@@ -971,25 +933,17 @@ static char **convertToSds(int count, char** args) {
 }
 
 static int issueCommandRepeat(int argc, char **argv, PORT_LONG repeat) {
-    while (1) {
-        config.cluster_reissue_command = 0;
-        if (cliSendCommand(argc,argv,(int)repeat) != REDIS_OK) {                WIN_PORT_FIX /* cast (int) */
-            cliConnect(1);
+    if (cliSendCommand(argc,argv,(int)repeat) != REDIS_OK) {                WIN_PORT_FIX /* cast (int) */
+        cliConnect(1);
 
-            /* If we still cannot send the command print error.
-             * We'll try to reconnect the next time. */
-            if (cliSendCommand(argc,argv,(int)repeat) != REDIS_OK) {            WIN_PORT_FIX /* cast (int) */
-                cliPrintContextError();
-                return REDIS_ERR;
-            }
-         }
-         /* Issue the command again if we got redirected in cluster mode */
-         if (config.cluster_mode && config.cluster_reissue_command) {
-            cliConnect(1);
-         } else {
-             break;
+        /* If we still cannot send the command print error.
+            * We'll try to reconnect the next time. */
+        if (cliSendCommand(argc,argv,(int)repeat) != REDIS_OK) {            WIN_PORT_FIX /* cast (int) */
+            cliPrintContextError();
+            return REDIS_ERR;
         }
     }
+
     return REDIS_OK;
 }
 
@@ -2193,7 +2147,6 @@ int main(int argc, char **argv) {
     config.latency_history = 0;
     config.lru_test_mode = 0;
     config.lru_test_sample_size = 0;
-    config.cluster_mode = 0;
     config.slave_mode = 0;
     config.getrdb_mode = 0;
     config.stat_mode = 0;

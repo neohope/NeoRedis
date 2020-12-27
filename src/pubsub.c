@@ -316,10 +316,7 @@ void punsubscribeCommand(redisClient *c) {
 
 void publishCommand(redisClient *c) {
     int receivers = pubsubPublishMessage(c->argv[1],c->argv[2]);
-    if (server.cluster_enabled)
-        clusterPropagatePublish(c->argv[1],c->argv[2]);
-    else
-        forceCommandPropagation(c,REDIS_PROPAGATE_REPL);
+    forceCommandPropagation(c,REDIS_PROPAGATE_REPL);
     addReplyLongLong(c,receivers);
 }
 

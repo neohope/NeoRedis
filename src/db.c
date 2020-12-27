@@ -31,7 +31,6 @@
 #ifdef _WIN32
 #include "Win32_Interop/Win32_QFork.h"
 #endif
-#include "cluster.h"
 
 #include <signal.h>
 #include <ctype.h>
@@ -99,7 +98,6 @@ void dbAdd(redisDb *db, robj *key, robj *val) {
 
     redisAssertWithInfo(NULL,key,retval == REDIS_OK);
     if (val->type == REDIS_LIST) signalListAsReady(db, key);
-    if (server.cluster_enabled) slotToKeyAdd(key);
  }
 
 /* Overwrite an existing key with a new value. Incrementing the reference
@@ -167,7 +165,6 @@ int dbDelete(redisDb *db, robj *key) {
      * the key, because it is shared with the main dictionary. */
     if (dictSize(db->expires) > 0) dictDelete(db->expires,key->ptr);
     if (dictDelete(db->dict,key->ptr) == DICT_OK) {
-        if (server.cluster_enabled) slotToKeyDel(key);
         return 1;
     } else {
         return 0;
@@ -221,7 +218,6 @@ PORT_LONGLONG emptyDb(void(callback)(void*)) {
         dictEmpty(server.db[j].dict,callback);
         dictEmpty(server.db[j].expires,callback);
     }
-    if (server.cluster_enabled) slotToKeyFlush();
     return removed;
 }
 
@@ -258,7 +254,6 @@ void flushdbCommand(redisClient *c) {
     signalFlushedDb(c->db->id);
     dictEmpty(c->db->dict,NULL);
     dictEmpty(c->db->expires,NULL);
-    if (server.cluster_enabled) slotToKeyFlush();
     addReply(c,shared.ok);
 }
 
@@ -320,10 +315,6 @@ void selectCommand(redisClient *c) {
         "invalid DB index") != REDIS_OK)
         return;
 
-    if (server.cluster_enabled && id != 0) {
-        addReplyError(c,"SELECT is not allowed in cluster mode");
-        return;
-    }
     if (selectDb(c,(int)id) == REDIS_ERR) {                                     WIN_PORT_FIX /* cast (int) */
 
         addReplyError(c,"invalid DB index");
@@ -723,11 +714,6 @@ void moveCommand(redisClient *c) {
     redisDb *src, *dst;
     int srcid;
     PORT_LONGLONG dbid, expire;
-
-    if (server.cluster_enabled) {
-        addReplyError(c,"MOVE is not allowed in cluster mode");
-        return;
-    }
 
     /* Obtain source and target DB pointers */
     src = c->db;
@@ -1137,92 +1123,4 @@ int *sortGetKeys(struct redisCommand *cmd, robj **argv, int argc, int *numkeys) 
     }
     *numkeys = num + found_store;
     return keys;
-}
-
-/* Slot to Key API. This is used by Redis Cluster in order to obtain in
- * a fast way a key that belongs to a specified hash slot. This is useful
- * while rehashing the cluster. */
-void slotToKeyAdd(robj *key) {
-    unsigned int hashslot = keyHashSlot(key->ptr,(int)sdslen(key->ptr));        WIN_PORT_FIX /* cast (int) */
-
-    zslInsert(server.cluster->slots_to_keys,hashslot,key);
-    incrRefCount(key);
-}
-
-void slotToKeyDel(robj *key) {
-    unsigned int hashslot = keyHashSlot(key->ptr,(int)sdslen(key->ptr));        WIN_PORT_FIX /* cast (int) */
-
-    zslDelete(server.cluster->slots_to_keys,hashslot,key);
-}
-
-void slotToKeyFlush(void) {
-    zslFree(server.cluster->slots_to_keys);
-    server.cluster->slots_to_keys = zslCreate();
-}
-
-unsigned int getKeysInSlot(unsigned int hashslot, robj **keys, unsigned int count) {
-    zskiplistNode *n;
-    zrangespec range;
-    int j = 0;
-
-    range.min = range.max = hashslot;
-    range.minex = range.maxex = 0;
-
-    n = zslFirstInRange(server.cluster->slots_to_keys, &range);
-    while(n && n->score == hashslot && count--) {
-        keys[j++] = n->obj;
-        n = n->level[0].forward;
-    }
-    return j;
-}
-
-/* Remove all the keys in the specified hash slot.
- * The number of removed items is returned. */
-unsigned int delKeysInSlot(unsigned int hashslot) {
-    zskiplistNode *n;
-    zrangespec range;
-    int j = 0;
-
-    range.min = range.max = hashslot;
-    range.minex = range.maxex = 0;
-
-    n = zslFirstInRange(server.cluster->slots_to_keys, &range);
-    while(n && n->score == hashslot) {
-        robj *key = n->obj;
-        n = n->level[0].forward; /* Go to the next item before freeing it. */
-        incrRefCount(key); /* Protect the object while freeing it. */
-        dbDelete(&server.db[0],key);
-        decrRefCount(key);
-        j++;
-    }
-    return j;
-}
-
-unsigned int countKeysInSlot(unsigned int hashslot) {
-    zskiplist *zsl = server.cluster->slots_to_keys;
-    zskiplistNode *zn;
-    zrangespec range;
-    int rank, count = 0;
-
-    range.min = range.max = hashslot;
-    range.minex = range.maxex = 0;
-
-    /* Find first element in range */
-    zn = zslFirstInRange(zsl, &range);
-
-    /* Use rank of first element, if any, to determine preliminary count */
-    if (zn != NULL) {
-        rank = (int) zslGetRank(zsl, zn->score, zn->obj);                       WIN_PORT_FIX /* cast (int) */
-        count = (int) (zsl->length - (rank - 1));                               WIN_PORT_FIX /* cast (int) */
-
-        /* Find last element in range */
-        zn = zslLastInRange(zsl, &range);
-
-        /* Use rank of last element, if any, to determine the actual count */
-        if (zn != NULL) {
-            rank = (int) zslGetRank(zsl, zn->score, zn->obj);                   WIN_PORT_FIX /* cast (int) */
-            count -= (int) (zsl->length - rank);                                WIN_PORT_FIX /* cast (int) */
-        }
-    }
-    return count;
 }

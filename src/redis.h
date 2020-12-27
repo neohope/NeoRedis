@@ -255,7 +255,6 @@ POSIX_ONLY(#define REDIS_MAX_LOGMSG_LEN    1024) /* Default maximum length of sy
 #define REDIS_FORCE_AOF (1<<14)   /* Force AOF propagation of current cmd. */
 #define REDIS_FORCE_REPL (1<<15)  /* Force replication of current cmd. */
 #define REDIS_PRE_PSYNC (1<<16)   /* Instance don't understand PSYNC. */
-#define REDIS_READONLY (1<<17)    /* Cluster client is in read-only state. */
 #define REDIS_PUBSUB (1<<18)      /* Client is in Pub/Sub mode. */
 
 /* Client block type (btype field in client structure)
@@ -698,8 +697,6 @@ struct redisServer {
     int ipfd[REDIS_BINDADDR_MAX]; /* TCP socket file descriptors */
     int ipfd_count;             /* Used slots in ipfd[] */
     int sofd;                   /* Unix socket file descriptor */
-    int cfd[REDIS_BINDADDR_MAX];/* Cluster bus listening socket */
-    int cfd_count;              /* Used slots in cfd[] */
     list *clients;              /* List of active clients */
     list *clients_to_close;     /* Clients to close asynchronously */
     list *slaves, *monitors;    /* List of slaves and MONITORs */
@@ -707,7 +704,6 @@ struct redisServer {
     int clients_paused;         /* True if clients are currently paused */
     mstime_t clients_pause_end_time; /* Time when we undo clients_paused */
     char neterr[ANET_ERR_LEN];   /* Error buffer for anet.c */
-    dict *migrate_cached_sockets;/* MIGRATE cached sockets */
     uint64_t next_client_id;    /* Next client unique ID. Incremental. */
     /* RDB / AOF loading information */
     int loading;                /* We are loading data from disk if true */
@@ -897,17 +893,12 @@ struct redisServer {
     list *pubsub_patterns;  /* A list of pubsub_patterns */
     int notify_keyspace_events; /* Events to propagate via Pub/Sub. This is an
                                    xor of REDIS_NOTIFY... flags. */
-    /* Cluster */
-    int cluster_enabled;      /* Is cluster enabled? */
-    mstime_t cluster_node_timeout; /* Cluster node timeout. */
-    char *cluster_configfile; /* Cluster auto-generated config file name. */
-    struct clusterState *cluster;  /* State of the cluster */
-    int cluster_migration_barrier; /* Cluster replicas migration barrier. */
-    int cluster_slave_validity_factor; /* Slave max data age for failover. */
-    int cluster_require_full_coverage; /* If true, put the cluster down if
-                                          there is at least an uncovered slot. */
-    /* Scripting Removed*/
-    /* Latency monitor */
+
+	/* Cluster Removed*/
+
+	/* Scripting Removed*/
+
+	/* Latency monitor */
     PORT_LONGLONG latency_monitor_threshold;
     dict *latency_events;
     /* Assert & bug reporting */
@@ -931,8 +922,7 @@ struct redisCommand {
     int arity;
     char *sflags; /* Flags as string representation, one char per flag. */
     int flags;    /* The actual flags, obtained from the 'sflags' field. */
-    /* Use a function to determine keys arguments in a command line.
-     * Used for Redis Cluster redirect. */
+    /* Use a function to determine keys arguments in a command line. */
     redisGetKeysProc *getkeys_proc;
     /* What keys should be loaded in background when calling this command? */
     int firstkey; /* The first argument that's a key (0 = no keys) */
@@ -1345,10 +1335,6 @@ PORT_LONGLONG emptyDb(void(callback)(void*));
 int selectDb(redisClient *c, int id);
 void signalModifiedKey(redisDb *db, robj *key);
 void signalFlushedDb(int dbid);
-unsigned int getKeysInSlot(unsigned int hashslot, robj **keys, unsigned int count);
-unsigned int countKeysInSlot(unsigned int hashslot);
-unsigned int delKeysInSlot(unsigned int hashslot);
-int verifyClusterConfigWithData(void);
 void scanGenericCommand(redisClient *c, robj *o, PORT_ULONG cursor);
 int parseScanCursorOrReply(redisClient *c, robj *o, PORT_ULONG *cursor);
 
@@ -1358,15 +1344,6 @@ void getKeysFreeResult(int *result);
 int *zunionInterGetKeys(struct redisCommand *cmd,robj **argv, int argc, int *numkeys);
 int *evalGetKeys(struct redisCommand *cmd, robj **argv, int argc, int *numkeys);
 int *sortGetKeys(struct redisCommand *cmd, robj **argv, int argc, int *numkeys);
-
-/* Cluster */
-void clusterInit(void);
-unsigned short crc16(const char *buf, int len);
-unsigned int keyHashSlot(char *key, int keylen);
-void clusterCron(void);
-void clusterPropagatePublish(robj *channel, robj *message);
-void migrateCloseTimedoutSockets(void);
-void clusterBeforeSleep(void);
 
 /* Sentinel */
 void initSentinelConfig(void);
@@ -1523,13 +1500,6 @@ void publishCommand(redisClient *c);
 void pubsubCommand(redisClient *c);
 void watchCommand(redisClient *c);
 void unwatchCommand(redisClient *c);
-void clusterCommand(redisClient *c);
-void restoreCommand(redisClient *c);
-void migrateCommand(redisClient *c);
-void askingCommand(redisClient *c);
-void readonlyCommand(redisClient *c);
-void readwriteCommand(redisClient *c);
-void dumpCommand(redisClient *c);
 void objectCommand(redisClient *c);
 void clientCommand(redisClient *c);
 void timeCommand(redisClient *c);

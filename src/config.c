@@ -35,7 +35,6 @@
 #endif
 
 #include "redis.h"
-#include "cluster.h"
 
 #include <fcntl.h>
 #include <sys/stat.h>
@@ -475,41 +474,6 @@ void loadServerConfigFromString(char *config) {
                     err = "Target command name already exists"; goto loaderr;
                 }
             }
-        } else if (!strcasecmp(argv[0],"cluster-enabled") && argc == 2) {
-            if ((server.cluster_enabled = yesnotoi(argv[1])) == -1) {
-                err = "argument must be 'yes' or 'no'"; goto loaderr;
-            }
-        } else if (!strcasecmp(argv[0],"cluster-config-file") && argc == 2) {
-            zfree(server.cluster_configfile);
-            server.cluster_configfile = zstrdup(argv[1]);
-        } else if (!strcasecmp(argv[0],"cluster-require-full-coverage") &&
-                    argc == 2)
-        {
-            if ((server.cluster_require_full_coverage = yesnotoi(argv[1])) == -1)
-            {
-                err = "argument must be 'yes' or 'no'"; goto loaderr;
-            }
-        } else if (!strcasecmp(argv[0],"cluster-node-timeout") && argc == 2) {
-            server.cluster_node_timeout = strtoll(argv[1],NULL,10);
-            if (server.cluster_node_timeout <= 0) {
-                err = "cluster node timeout must be 1 or greater"; goto loaderr;
-            }
-        } else if (!strcasecmp(argv[0],"cluster-migration-barrier")
-                   && argc == 2)
-        {
-            server.cluster_migration_barrier = atoi(argv[1]);
-            if (server.cluster_migration_barrier < 0) {
-                err = "cluster migration barrier must zero or positive";
-                goto loaderr;
-            }
-        } else if (!strcasecmp(argv[0],"cluster-slave-validity-factor")
-                   && argc == 2)
-        {
-            server.cluster_slave_validity_factor = atoi(argv[1]);
-            if (server.cluster_slave_validity_factor < 0) {
-                err = "cluster slave validity factor must be zero or positive";
-                goto loaderr;
-            }
         } else if (!strcasecmp(argv[0],"slowlog-log-slower-than") &&
                    argc == 2)
         {
@@ -623,14 +587,6 @@ void loadServerConfigFromString(char *config) {
             err = "Bad directive or wrong number of arguments"; goto loaderr;
         }
         sdsfreesplitres(argv,argc);
-    }
-
-    /* Sanity checks. */
-    if (server.cluster_enabled && server.masterhost) {
-        linenum = slaveof_linenum;
-        i = linenum-1;
-        err = "slaveof directive not allowed in cluster mode";
-        goto loaderr;
     }
 
     sdsfreesplitres(lines,totlines);
@@ -1041,23 +997,6 @@ void configSetCommand(redisClient *c) {
             ll < 0) goto badfmt;
         server.repl_min_slaves_max_lag = (int)ll;                               WIN_PORT_FIX /* cast (int) */
         refreshGoodSlavesCount();
-    } else if (!strcasecmp(c->argv[2]->ptr,"cluster-require-full-coverage")) {
-        int yn = yesnotoi(o->ptr);
-
-        if (yn == -1) goto badfmt;
-        server.cluster_require_full_coverage = yn;
-    } else if (!strcasecmp(c->argv[2]->ptr,"cluster-node-timeout")) {
-        if (getLongLongFromObject(o,&ll) == REDIS_ERR ||
-            ll <= 0) goto badfmt;
-        server.cluster_node_timeout = ll;
-    } else if (!strcasecmp(c->argv[2]->ptr,"cluster-migration-barrier")) {
-        if (getLongLongFromObject(o,&ll) == REDIS_ERR ||
-            ll < 0) goto badfmt;
-        server.cluster_migration_barrier = (int)ll;                             WIN_PORT_FIX /* cast (int) */
-    } else if (!strcasecmp(c->argv[2]->ptr,"cluster-slave-validity-factor")) {
-        if (getLongLongFromObject(o,&ll) == REDIS_ERR ||
-            ll < 0) goto badfmt;
-        server.cluster_slave_validity_factor = (int)ll;                         WIN_PORT_FIX /* cast (int) */
     } else {
         addReplyErrorFormat(c,"Unsupported CONFIG parameter: %s",
             (char*)c->argv[2]->ptr);
@@ -1161,14 +1100,9 @@ void configGetCommand(redisClient *c) {
     config_get_numerical_field("min-slaves-to-write",server.repl_min_slaves_to_write);
     config_get_numerical_field("min-slaves-max-lag",server.repl_min_slaves_max_lag);
     config_get_numerical_field("hz",server.hz);
-    config_get_numerical_field("cluster-node-timeout",server.cluster_node_timeout);
-    config_get_numerical_field("cluster-migration-barrier",server.cluster_migration_barrier);
-    config_get_numerical_field("cluster-slave-validity-factor",server.cluster_slave_validity_factor);
     config_get_numerical_field("repl-diskless-sync-delay",server.repl_diskless_sync_delay);
 
     /* Bool (yes/no) values */
-    config_get_bool_field("cluster-require-full-coverage",
-            server.cluster_require_full_coverage);
     config_get_bool_field("no-appendfsync-on-rewrite",
             server.aof_no_fsync_on_rewrite);
     config_get_bool_field("slave-serve-stale-data",
@@ -1663,13 +1597,6 @@ void rewriteConfigSlaveofOption(struct rewriteConfigState *state) {
     char *option = "slaveof";
     sds line;
 
-    /* If this is a master, we want all the slaveof config options
-     * in the file to be removed. Note that if this is a cluster instance
-     * we don't want a slaveof directive inside redis.conf. */
-    if (server.cluster_enabled || server.masterhost == NULL) {
-        rewriteConfigMarkAsProcessed(state,"slaveof");
-        return;
-    }
     line = sdscatprintf(sdsempty(),"%s %s %d", option,
         server.masterhost, server.masterport);
     rewriteConfigRewriteLine(state,option,line,1);
@@ -1941,12 +1868,6 @@ int rewriteConfig(char *path) {
     rewriteConfigYesNoOption(state,"no-appendfsync-on-rewrite",server.aof_no_fsync_on_rewrite,REDIS_DEFAULT_AOF_NO_FSYNC_ON_REWRITE);
     rewriteConfigNumericalOption(state,"auto-aof-rewrite-percentage",server.aof_rewrite_perc,REDIS_AOF_REWRITE_PERC);
     rewriteConfigBytesOption(state,"auto-aof-rewrite-min-size",server.aof_rewrite_min_size,REDIS_AOF_REWRITE_MIN_SIZE);
-    rewriteConfigYesNoOption(state,"cluster-enabled",server.cluster_enabled,0);
-    rewriteConfigStringOption(state,"cluster-config-file",server.cluster_configfile,REDIS_DEFAULT_CLUSTER_CONFIG_FILE);
-    rewriteConfigYesNoOption(state,"cluster-require-full-coverage",server.cluster_require_full_coverage,REDIS_CLUSTER_DEFAULT_REQUIRE_FULL_COVERAGE);
-    rewriteConfigNumericalOption(state,"cluster-node-timeout",server.cluster_node_timeout,REDIS_CLUSTER_DEFAULT_NODE_TIMEOUT);
-    rewriteConfigNumericalOption(state,"cluster-migration-barrier",server.cluster_migration_barrier,REDIS_CLUSTER_DEFAULT_MIGRATION_BARRIER);
-    rewriteConfigNumericalOption(state,"cluster-slave-validity-factor",server.cluster_slave_validity_factor,REDIS_CLUSTER_DEFAULT_SLAVE_VALIDITY);
     rewriteConfigNumericalOption(state,"slowlog-log-slower-than",server.slowlog_log_slower_than,REDIS_SLOWLOG_LOG_SLOWER_THAN);
     rewriteConfigNumericalOption(state,"latency-monitor-threshold",server.latency_monitor_threshold,REDIS_DEFAULT_LATENCY_MONITOR_THRESHOLD);
     rewriteConfigNumericalOption(state,"slowlog-max-len",server.slowlog_max_len,REDIS_SLOWLOG_MAX_LEN);

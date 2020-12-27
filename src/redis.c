@@ -35,7 +35,6 @@
 #endif
 
 #include "redis.h"
-#include "cluster.h"
 #include "slowlog.h"
 #include "bio.h"
 #include "latency.h"
@@ -266,14 +265,6 @@ struct redisCommand redisCommandTable[] = {
     {"pubsub",pubsubCommand,-2,"pltrR",0,NULL,0,0,0,0,0},
     {"watch",watchCommand,-2,"rsF",0,NULL,1,-1,1,0,0},
     {"unwatch",unwatchCommand,1,"rsF",0,NULL,0,0,0,0,0},
-    {"cluster",clusterCommand,-2,"ar",0,NULL,0,0,0,0,0},
-    {"restore",restoreCommand,-4,"wm",0,NULL,1,1,1,0,0},
-    {"restore-asking",restoreCommand,-4,"wmk",0,NULL,1,1,1,0,0},
-    {"migrate",migrateCommand,-6,"w",0,NULL,0,0,0,0,0},
-    {"asking",askingCommand,1,"r",0,NULL,0,0,0,0,0},
-    {"readonly",readonlyCommand,1,"rF",0,NULL,0,0,0,0,0},
-    {"readwrite",readwriteCommand,1,"rF",0,NULL,0,0,0,0,0},
-    {"dump",dumpCommand,2,"r",0,NULL,1,1,1,0,0},
     {"object",objectCommand,3,"r",0,NULL,2,2,2,0,0},
     {"client",clientCommand,-2,"rs",0,NULL,0,0,0,0,0},
     {"slowlog",slowlogCommand,-2,"r",0,NULL,0,0,0,0,0},
@@ -610,39 +601,6 @@ dictType keylistDictType = {
     dictListDestructor          /* val destructor */
 };
 
-/* Cluster nodes hash table, mapping nodes addresses 1.2.3.4:6379 to
- * clusterNode structures. */
-dictType clusterNodesDictType = {
-    dictSdsHash,                /* hash function */
-    NULL,                       /* key dup */
-    NULL,                       /* val dup */
-    dictSdsKeyCompare,          /* key compare */
-    dictSdsDestructor,          /* key destructor */
-    NULL                        /* val destructor */
-};
-
-/* Cluster re-addition blacklist. This maps node IDs to the time
- * we can re-add this node. The goal is to avoid readding a removed
- * node for some time. */
-dictType clusterNodesBlackListDictType = {
-    dictSdsCaseHash,            /* hash function */
-    NULL,                       /* key dup */
-    NULL,                       /* val dup */
-    dictSdsKeyCaseCompare,      /* key compare */
-    dictSdsDestructor,          /* key destructor */
-    NULL                        /* val destructor */
-};
-
-/* Migrate cache dict type. */
-dictType migrateCacheDictType = {
-    dictSdsHash,                /* hash function */
-    NULL,                       /* key dup */
-    NULL,                       /* val dup */
-    dictSdsKeyCompare,          /* key compare */
-    dictSdsDestructor,          /* key destructor */
-    NULL                        /* val destructor */
-};
-
 /* Replication cached script dict (server.repl_scriptcache_dict).
  * Keys are sds SHA1 strings, while values are not used at all in the current
  * implementation. */
@@ -935,11 +893,6 @@ int clientsCronHandleTimeout(redisClient *c, mstime_t now_ms) {
             /* Handle blocking operation specific timeout. */
             replyToBlockedClientTimedOut(c);
             unblockClient(c);
-        } else if (server.cluster_enabled) {
-            /* Cluster: handle unblock & redirect of clients blocked
-             * into keys no longer served by this server. */
-            if (clusterRedirectBlockedClientIfNeeded(c))
-                unblockClient(c);
         }
     }
     return 0;
@@ -1273,19 +1226,9 @@ int serverCron(struct aeEventLoop *eventLoop, PORT_LONGLONG id, void *clientData
      * to detect transfer failures. */
     run_with_period(1000) replicationCron();
 
-    /* Run the Redis Cluster cron. */
-    run_with_period(100) {
-        if (server.cluster_enabled) clusterCron();
-    }
-
     /* Run the Sentinel timer if we are in sentinel mode. */
     run_with_period(100) {
         if (server.sentinel_mode) sentinelTimer();
-    }
-
-    /* Cleanup expired MIGRATE cached sockets. */
-    run_with_period(1000) {
-        migrateCloseTimedoutSockets();
     }
 
     server.cronloops++;
@@ -1303,12 +1246,6 @@ void beforeSleep(struct aeEventLoop *eventLoop) {
     //2) check if more data can be written to the child and write it
     aofProcessDiffRewriteEvents(eventLoop);
 #endif
-
-    /* Call the Redis Cluster before sleep function. Note that this function
-     * may change the state of Redis Cluster (from ok to fail or vice versa),
-     * so it's a good idea to call it before serving the unblocked clients
-     * later in this function. */
-    if (server.cluster_enabled) clusterBeforeSleep();
 
     /* Run a fast expire cycle (the called function will return
      * ASAP if a fast cycle is not needed). */
@@ -1508,13 +1445,6 @@ void initServerConfig(void) {
     server.repl_timeout = REDIS_REPL_TIMEOUT;
     server.repl_min_slaves_to_write = REDIS_DEFAULT_MIN_SLAVES_TO_WRITE;
     server.repl_min_slaves_max_lag = REDIS_DEFAULT_MIN_SLAVES_MAX_LAG;
-    server.cluster_enabled = 0;
-    server.cluster_node_timeout = REDIS_CLUSTER_DEFAULT_NODE_TIMEOUT;
-    server.cluster_migration_barrier = REDIS_CLUSTER_DEFAULT_MIGRATION_BARRIER;
-    server.cluster_slave_validity_factor = REDIS_CLUSTER_DEFAULT_SLAVE_VALIDITY;
-    server.cluster_require_full_coverage = REDIS_CLUSTER_DEFAULT_REQUIRE_FULL_COVERAGE;
-    server.cluster_configfile = zstrdup(REDIS_DEFAULT_CLUSTER_CONFIG_FILE);
-    server.migrate_cached_sockets = dictCreate(&migrateCacheDictType,NULL);
     server.next_client_id = 1; /* Client IDs, start from 1 .*/
     server.loading_process_events_interval_bytes = (1024*1024*2);
 
@@ -1934,7 +1864,6 @@ void initServer(void) {
         server.maxmemory_policy = REDIS_MAXMEMORY_NO_EVICTION;
     }
 
-    if (server.cluster_enabled) clusterInit();
     replicationScriptCacheInit();
     slowlogInit();
     latencyMonitorInit();
@@ -2203,31 +2132,6 @@ int processCommand(redisClient *c) {
         return REDIS_OK;
     }
 
-    /* If cluster is enabled perform the cluster redirection here.
-     * However we don't perform the redirection if:
-     * 1) The sender of this command is our master.
-     * 2) The command has no key arguments. */
-    if (server.cluster_enabled &&
-        !(c->flags & REDIS_MASTER) &&
-        !(c->cmd->getkeys_proc == NULL && c->cmd->firstkey == 0))
-    {
-        int hashslot;
-
-        if (server.cluster->state != REDIS_CLUSTER_OK) {
-            flagTransaction(c);
-            clusterRedirectClient(c,NULL,0,REDIS_CLUSTER_REDIR_DOWN_STATE);
-            return REDIS_OK;
-        } else {
-            int error_code;
-            clusterNode *n = getNodeByQuery(c,c->cmd,c->argv,c->argc,&hashslot,&error_code);
-            if (n == NULL || n != server.cluster->myself) {
-                flagTransaction(c);
-                clusterRedirectClient(c,n,hashslot,error_code);
-                return REDIS_OK;
-            }
-        }
-    }
-
     /* Handle the maxmemory directive.
      *
      * First we try to free some memory if possible (if there are volatile
@@ -2340,8 +2244,6 @@ void closeListeningSockets(int unlink_unix_socket) {
 
     for (j = 0; j < server.ipfd_count; j++) close(server.ipfd[j]);
     if (server.sofd != -1) close(server.sofd);
-    if (server.cluster_enabled)
-        for (j = 0; j < server.cfd_count; j++) close(server.cfd[j]);
     if (unlink_unix_socket && server.unixsocket) {
         redisLog(REDIS_NOTICE,"Removing the unix socket file.");
         unlink(server.unixsocket); /* don't care if this fails */
@@ -2646,8 +2548,7 @@ sds genRedisInfoString(char *section) {
         POSIX_ONLY(static struct utsname name;)
         char *mode;
 
-        if (server.cluster_enabled) mode = "cluster";
-        else if (server.sentinel_mode) mode = "sentinel";
+        if (server.sentinel_mode) mode = "sentinel";
         else mode = "standalone";
 
         if (sections++) info = sdscat(info,"\r\n");
@@ -2863,8 +2764,7 @@ sds genRedisInfoString(char *section) {
             "keyspace_misses:%lld\r\n"
             "pubsub_channels:%ld\r\n"
             "pubsub_patterns:%Iu\r\n"                                           WIN_PORT_FIX /* %lu -> %Iu */
-            "latest_fork_usec:%lld\r\n"
-            "migrate_cached_sockets:%ld\r\n",
+            "latest_fork_usec:%lld\r\n",
             server.stat_numconnections,
             server.stat_numcommands,
             getInstantaneousMetric(REDIS_METRIC_COMMAND),
@@ -2882,8 +2782,7 @@ sds genRedisInfoString(char *section) {
             server.stat_keyspace_misses,
             dictSize(server.pubsub_channels),
             listLength(server.pubsub_patterns),
-            server.stat_fork_time,
-            dictSize(server.migrate_cached_sockets));
+            server.stat_fork_time);
     }
 
     /* Replication */
@@ -3033,15 +2932,6 @@ sds genRedisInfoString(char *section) {
                 c->name, c->calls, c->microseconds,
                 (c->calls == 0) ? 0 : ((float)c->microseconds/c->calls));
         }
-    }
-
-    /* Cluster */
-    if (allsections || defsections || !strcasecmp(section,"cluster")) {
-        if (sections++) info = sdscat(info,"\r\n");
-        info = sdscatprintf(info,
-        "# Cluster\r\n"
-        "cluster_enabled:%d\r\n",
-        server.cluster_enabled);
     }
 
     /* Key space */
@@ -3469,8 +3359,7 @@ void redisAsciiArt(void) {
     char *buf = zmalloc(1024*16);
     char *mode;
 
-    if (server.cluster_enabled) mode = "cluster";
-    else if (server.sentinel_mode) mode = "sentinel";
+    if (server.sentinel_mode) mode = "sentinel";
     else mode = "standalone";
 
     if (server.syslog_enabled) {
@@ -3590,8 +3479,7 @@ void redisOutOfMemoryHandler(size_t allocation_size) {
 void redisSetProcTitle(char *title) {
 #ifdef USE_SETPROCTITLE
     char *server_mode = "";
-    if (server.cluster_enabled) server_mode = " [cluster]";
-    else if (server.sentinel_mode) server_mode = " [sentinel]";
+    if (server.sentinel_mode) server_mode = " [sentinel]";
 
     setproctitle("%s %s:%d%s",
         title,
@@ -3696,14 +3584,6 @@ int main(int argc, char **argv) {
         linuxMemoryWarnings();
     #endif
         loadDataFromDisk();
-        if (server.cluster_enabled) {
-            if (verifyClusterConfigWithData() == REDIS_ERR) {
-                redisLog(REDIS_WARNING,
-                    "You can't have keys in a DB different than DB 0 when in "
-                    "Cluster mode. Exiting.");
-                exit(1);
-            }
-        }
         if (server.ipfd_count > 0)
             redisLog(REDIS_NOTICE,"The server is now ready to accept connections on port %d", server.port);
         if (server.sofd > 0)

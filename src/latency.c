@@ -459,7 +459,7 @@ sds createLatencyReport(void) {
         }
 
         if (advise_mass_eviction) {
-            report = sdscat(report,"- Sudden changes to the 'maxmemory' setting via 'CONFIG SET', or allocation of large objects via sets or sorted sets intersections, STORE option of SORT, Redis Cluster large keys migrations (RESTORE command), may create sudden memory pressure forcing the server to block trying to evict keys. \n");
+            report = sdscat(report,"- Sudden changes to the 'maxmemory' setting via 'CONFIG SET', or allocation of large objects via sets or sorted sets intersections, STORE option of SORT, may create sudden memory pressure forcing the server to block trying to evict keys. \n");
         }
 
         if (advise_disable_thp) {

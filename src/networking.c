@@ -1031,10 +1031,6 @@ void resetClient(redisClient *c) {
     c->reqtype = 0;
     c->multibulklen = 0;
     c->bulklen = -1;
-    /* We clear the ASKING flag as well if we are not inside a MULTI, and
-     * if what we just executed is not the ASKING command itself. */
-    if (!(c->flags & REDIS_MULTI) && prevcmd != askingCommand)
-        c->flags &= (~REDIS_ASKING);
 }
 
 int processInlineBuffer(redisClient *c) {
@@ -1448,7 +1444,6 @@ sds catClientInfoString(sds s, redisClient *client) {
     if (client->flags & REDIS_UNBLOCKED) *p++ = 'u';
     if (client->flags & REDIS_CLOSE_ASAP) *p++ = 'A';
     if (client->flags & REDIS_UNIX_SOCKET) *p++ = 'U';
-    if (client->flags & REDIS_READONLY) *p++ = 'r';
     if (p == flags) *p++ = 'N';
     *p++ = '\0';
 
@@ -1831,9 +1826,6 @@ void flushSlavesOutputBuffers(void) {
  * still served, so this function can be used on server upgrades where it is
  * required that slaves process the latest bytes from the replication stream
  * before being turned to masters.
- *
- * This function is also internally used by Redis Cluster for the manual
- * failover procedure implemented by CLUSTER FAILOVER.
  *
  * The function always succeed, even if there is already a pause in progress.
  * In such a case, the pause is extended if the duration is more than the
