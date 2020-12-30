@@ -96,7 +96,6 @@ void dbAdd(redisDb *db, robj *key, robj *val) {
     sds copy = sdsdup(key->ptr);
     int retval = dictAdd(db->dict, copy, val);
 
-    redisAssertWithInfo(NULL,key,retval == REDIS_OK);
     if (val->type == REDIS_LIST) signalListAsReady(db, key);
  }
 
@@ -108,7 +107,6 @@ void dbAdd(redisDb *db, robj *key, robj *val) {
 void dbOverwrite(redisDb *db, robj *key, robj *val) {
     dictEntry *de = dictFind(db->dict,key->ptr);
 
-    redisAssertWithInfo(NULL,key,de != NULL);
     dictReplace(db->dict, key->ptr, val);
 }
 
@@ -199,7 +197,6 @@ int dbDelete(redisDb *db, robj *key) {
  * using an sdscat() call to append some data, or anything else.
  */
 robj *dbUnshareStringValue(redisDb *db, robj *key, robj *o) {
-    redisAssert(o->type == REDIS_STRING);
     if (o->refcount != 1 || o->encoding != REDIS_ENCODING_RAW) {
         robj *decoded = getDecodedObject(o);
         o = createRawStringObject(decoded->ptr, sdslen(decoded->ptr));
@@ -384,7 +381,7 @@ void scanCallback(void *privdata, const dictEntry *de) {
         incrRefCount(key);
         val = createStringObjectFromLongDouble(*(double*)dictGetVal(de),0);
     } else {
-        redisPanic("Type not handled in SCAN callback.");
+		printf("Type not handled in SCAN callback.");
     }
 
     listAddNodeTail(keys, key);
@@ -432,8 +429,6 @@ void scanGenericCommand(redisClient *c, robj *o, PORT_ULONG cursor) {
 
     /* Object must be NULL (to iterate keys names), or the type of the object
      * must be Set, Sorted Set, or Hash. */
-    redisAssert(o == NULL || o->type == REDIS_SET || o->type == REDIS_HASH ||
-                o->type == REDIS_ZSET);
 
     /* Set i to the first option argument. The previous one is the cursor. */
     i = (o == NULL) ? 2 : 3; /* Skip the key argument if needed. */
@@ -532,7 +527,7 @@ void scanGenericCommand(redisClient *c, robj *o, PORT_ULONG cursor) {
         }
         cursor = 0;
     } else {
-        redisPanic("Not handled encoding in SCAN.");
+		printf("Not handled encoding in SCAN.");
     }
 
     /* Step 3: Filter elements. */
@@ -551,7 +546,6 @@ void scanGenericCommand(redisClient *c, robj *o, PORT_ULONG cursor) {
                 char buf[REDIS_LONGSTR_SIZE];
                 int len;
 
-                redisAssert(kobj->encoding == REDIS_ENCODING_INT);
                 len = ll2string(buf,sizeof(buf),(PORT_LONG)kobj->ptr);          WIN_PORT_FIX /* cast (PORT_LONG) */
                 if (!stringmatchlen(pat, patlen, buf, len, 0)) filter = 1;
             }
@@ -758,7 +752,7 @@ void moveCommand(redisClient *c) {
 int removeExpire(redisDb *db, robj *key) {
     /* An expire may only be removed if there is a corresponding entry in the
      * main dict. Otherwise, the key will never be freed. */
-    redisAssertWithInfo(NULL,key,dictFind(db->dict,key->ptr) != NULL);
+
     return dictDelete(db->expires,key->ptr) == DICT_OK;
 }
 
@@ -767,7 +761,6 @@ void setExpire(redisDb *db, robj *key, PORT_LONGLONG when) {
 
     /* Reuse the sds from the main dict in the expire dict */
     kde = dictFind(db->dict,key->ptr);
-    redisAssertWithInfo(NULL,key,kde != NULL);
     de = dictReplaceRaw(db->expires,dictGetKey(kde));
     dictSetSignedIntegerVal(de,when);
 }
@@ -783,7 +776,6 @@ PORT_LONGLONG getExpire(redisDb *db, robj *key) {
 
     /* The entry was found in the expire dict, this means it should also
      * be present in the main dict (safety check). */
-    redisAssertWithInfo(NULL,key,dictFind(db->dict,key->ptr) != NULL);
     return dictGetSignedIntegerVal(de);
 }
 
@@ -870,8 +862,6 @@ void expireGenericCommand(redisClient *c, PORT_LONGLONG basetime, int unit) {
      * (possibly in the past) and wait for an explicit DEL from the master. */
     if (when <= mstime() && !server.loading) {
         robj *aux;
-
-        redisAssertWithInfo(c,key,dbDelete(c->db,key));
         server.dirty++;
 
         /* Replicate/AOF this as an explicit DEL. */
@@ -970,7 +960,6 @@ int *getKeysUsingCommandTable(struct redisCommand *cmd,robj **argv, int argc, in
     if (last < 0) last = argc+last;
     keys = zmalloc(sizeof(int)*((last - cmd->firstkey)+1));
     for (j = cmd->firstkey; j <= last; j += cmd->keystep) {
-        redisAssert(j < argc);
         keys[i++] = j;
     }
     *numkeys = i;

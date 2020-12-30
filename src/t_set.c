@@ -68,12 +68,11 @@ int setTypeAdd(robj *subject, robj *value) {
 
             /* The set *was* an intset and this value is not integer
              * encodable, so dictAdd should always work. */
-            redisAssertWithInfo(NULL,value,dictAdd(subject->ptr,value,NULL) == DICT_OK);
             incrRefCount(value);
             return 1;
         }
     } else {
-        redisPanic("Unknown set encoding");
+		printf("Unknown set encoding");
     }
     return 0;
 }
@@ -92,7 +91,7 @@ int setTypeRemove(robj *setobj, robj *value) {
             if (success) return 1;
         }
     } else {
-        redisPanic("Unknown set encoding");
+		printf("Unknown set encoding");
     }
     return 0;
 }
@@ -106,7 +105,7 @@ int setTypeIsMember(robj *subject, robj *value) {
             return intsetFind((intset*)subject->ptr,llval);
         }
     } else {
-        redisPanic("Unknown set encoding");
+		printf("Unknown set encoding");
     }
     return 0;
 }
@@ -120,7 +119,7 @@ setTypeIterator *setTypeInitIterator(robj *subject) {
     } else if (si->encoding == REDIS_ENCODING_INTSET) {
         si->ii = 0;
     } else {
-        redisPanic("Unknown set encoding");
+		printf("Unknown set encoding");
     }
     return si;
 }
@@ -175,7 +174,7 @@ robj *setTypeNextObject(setTypeIterator *si) {
             incrRefCount(objele);
             return objele;
         default:
-            redisPanic("Unsupported encoding");
+			printf("Unsupported encoding");
     }
     return NULL; /* just to suppress warnings */
 }
@@ -200,7 +199,7 @@ int setTypeRandomElement(robj *setobj, robj **objele, int64_t *llele) {
     } else if (setobj->encoding == REDIS_ENCODING_INTSET) {
         *llele = intsetRandom(setobj->ptr);
     } else {
-        redisPanic("Unknown set encoding");
+        printf("Unknown set encoding");
     }
     return setobj->encoding;
 }
@@ -211,7 +210,7 @@ PORT_ULONG setTypeSize(robj *subject) {
     } else if (subject->encoding == REDIS_ENCODING_INTSET) {
         return intsetLen((intset*)subject->ptr);
     } else {
-        redisPanic("Unknown set encoding");
+        printf("Unknown set encoding");
     }
 }
 
@@ -220,8 +219,6 @@ PORT_ULONG setTypeSize(robj *subject) {
  * set. */
 void setTypeConvert(robj *setobj, int enc) {
     setTypeIterator *si;
-    redisAssertWithInfo(NULL,setobj,setobj->type == REDIS_SET &&
-                             setobj->encoding == REDIS_ENCODING_INTSET);
 
     if (enc == REDIS_ENCODING_HT) {
         int64_t intele;
@@ -235,7 +232,6 @@ void setTypeConvert(robj *setobj, int enc) {
         si = setTypeInitIterator(setobj);
         while (setTypeNext(si,NULL,&intele) != -1) {
             element = createStringObjectFromLongLong(intele);
-            redisAssertWithInfo(NULL,element,dictAdd(d,element,NULL) == DICT_OK);
         }
         setTypeReleaseIterator(si);
 
@@ -243,7 +239,7 @@ void setTypeConvert(robj *setobj, int enc) {
         zfree(setobj->ptr);
         setobj->ptr = d;
     } else {
-        redisPanic("Unsupported set conversion");
+		printf("Unsupported set conversion");
     }
 }
 
@@ -488,10 +484,8 @@ void srandmemberWithCountCommand(redisClient *c) {
             } else {
                 retval = dictAdd(d,dupStringObject(ele),NULL);
             }
-            redisAssert(retval == DICT_OK);
         }
         setTypeReleaseIterator(si);
-        redisAssert(dictSize(d) == size);
 
         /* Remove random elements to reach the right count. */
         while(size > count) {

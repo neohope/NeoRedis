@@ -178,7 +178,6 @@ LONG WINAPI UnhandledExceptiontHandler(PEXCEPTION_POINTERS info) {
             }
 
             // Call antirez routine to log the start of the bug report
-            bugReportStart();
             headerLogged = true;
             redisLog(REDIS_WARNING, "--- %s", exDescription);
             StackTraceInfo();
@@ -202,7 +201,6 @@ LONG WINAPI UnhandledExceptiontHandler(PEXCEPTION_POINTERS info) {
 
 /* Handler to trap abort() calls */
 extern "C" void AbortHandler(int signal_number) {
-    bugReportStart();
     redisLog(REDIS_WARNING, "--- ABORT");
     StackTraceInfo();
     BugReportEnd();

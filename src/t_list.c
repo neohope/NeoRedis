@@ -68,7 +68,7 @@ void listTypePush(robj *subject, robj *value, int where) {
         }
         incrRefCount(value);
     } else {
-        redisPanic("Unknown list encoding");
+		printf("Unknown list encoding");
     }
 }
 
@@ -104,7 +104,7 @@ robj *listTypePop(robj *subject, int where) {
             listDelNode(list,ln);
         }
     } else {
-        redisPanic("Unknown list encoding");
+		printf("Unknown list encoding");
     }
     return value;
 }
@@ -115,7 +115,7 @@ PORT_ULONG listTypeLength(robj *subject) {
     } else if (subject->encoding == REDIS_ENCODING_LINKEDLIST) {
         return listLength((list*)subject->ptr);
     } else {
-        redisPanic("Unknown list encoding");
+		printf("Unknown list encoding");
     }
 }
 
@@ -130,7 +130,7 @@ listTypeIterator *listTypeInitIterator(robj *subject, PORT_LONG index, unsigned 
     } else if (li->encoding == REDIS_ENCODING_LINKEDLIST) {
         li->ln = listIndex(subject->ptr,index);
     } else {
-        redisPanic("Unknown list encoding");
+        printf("Unknown list encoding");
     }
     return li;
 }
@@ -144,9 +144,6 @@ void listTypeReleaseIterator(listTypeIterator *li) {
  * and advances the position of the iterator. Returns 1 when the current
  * entry is in fact an entry, 0 otherwise. */
 int listTypeNext(listTypeIterator *li, listTypeEntry *entry) {
-    /* Protect from converting when iterating */
-    redisAssert(li->subject->encoding == li->encoding);
-
     entry->li = li;
     if (li->encoding == REDIS_ENCODING_ZIPLIST) {
         entry->zi = li->zi;
@@ -167,7 +164,7 @@ int listTypeNext(listTypeIterator *li, listTypeEntry *entry) {
             return 1;
         }
     } else {
-        redisPanic("Unknown list encoding");
+        printf("Unknown list encoding");
     }
     return 0;
 }
@@ -180,7 +177,7 @@ robj *listTypeGet(listTypeEntry *entry) {
         unsigned char *vstr;
         unsigned int vlen;
         PORT_LONGLONG vlong;
-        redisAssert(entry->zi != NULL);
+        printf(entry->zi != NULL);
         if (ziplistGet(entry->zi,&vstr,&vlen,&vlong)) {
             if (vstr) {
                 value = createStringObject((char*)vstr,vlen);
@@ -189,11 +186,10 @@ robj *listTypeGet(listTypeEntry *entry) {
             }
         }
     } else if (li->encoding == REDIS_ENCODING_LINKEDLIST) {
-        redisAssert(entry->ln != NULL);
         value = listNodeValue(entry->ln);
         incrRefCount(value);
     } else {
-        redisPanic("Unknown list encoding");
+        printf("Unknown list encoding");
     }
     return value;
 }
@@ -224,7 +220,7 @@ void listTypeInsert(listTypeEntry *entry, robj *value, int where) {
         }
         incrRefCount(value);
     } else {
-        redisPanic("Unknown list encoding");
+        printf("Unknown list encoding");
     }
 }
 
@@ -232,12 +228,11 @@ void listTypeInsert(listTypeEntry *entry, robj *value, int where) {
 int listTypeEqual(listTypeEntry *entry, robj *o) {
     listTypeIterator *li = entry->li;
     if (li->encoding == REDIS_ENCODING_ZIPLIST) {
-        redisAssertWithInfo(NULL,o,sdsEncodedObject(o));
         return ziplistCompare(entry->zi,o->ptr,(unsigned int)sdslen(o->ptr));   WIN_PORT_FIX /* cast (unsigned int) */
     } else if (li->encoding == REDIS_ENCODING_LINKEDLIST) {
         return equalStringObjects(o,listNodeValue(entry->ln));
     } else {
-        redisPanic("Unknown list encoding");
+        printf("Unknown list encoding");
     }
 }
 
@@ -262,14 +257,13 @@ void listTypeDelete(listTypeEntry *entry) {
         listDelNode(li->subject->ptr,entry->ln);
         li->ln = next;
     } else {
-        redisPanic("Unknown list encoding");
+        printf("Unknown list encoding");
     }
 }
 
 void listTypeConvert(robj *subject, int enc) {
     listTypeIterator *li;
     listTypeEntry entry;
-    redisAssertWithInfo(NULL,subject,subject->type == REDIS_LIST);
 
     if (enc == REDIS_ENCODING_LINKEDLIST) {
         list *l = listCreate();
@@ -284,7 +278,7 @@ void listTypeConvert(robj *subject, int enc) {
         zfree(subject->ptr);
         subject->ptr = l;
     } else {
-        redisPanic("Unsupported list conversion");
+        printf("Unsupported list conversion");
     }
 }
 
@@ -440,7 +434,7 @@ void lindexCommand(redisClient *c) {
             addReply(c,shared.nullbulk);
         }
     } else {
-        redisPanic("Unknown list encoding");
+        printf("Unknown list encoding");
     }
 }
 
@@ -481,7 +475,7 @@ void lsetCommand(redisClient *c) {
             server.dirty++;
         }
     } else {
-        redisPanic("Unknown list encoding");
+        printf("Unknown list encoding");
     }
 }
 
@@ -568,7 +562,7 @@ void lrangeCommand(redisClient *c) {
             ln = ln->next;
         }
     } else {
-        redisPanic("List encoding is not LINKEDLIST nor ZIPLIST!");
+        printf("List encoding is not LINKEDLIST nor ZIPLIST!");
     }
 }
 
@@ -617,7 +611,7 @@ void ltrimCommand(redisClient *c) {
             listDelNode(list,ln);
         }
     } else {
-        redisPanic("Unknown list encoding");
+        printf("Unknown list encoding");
     }
 
     if (listTypeLength(o) == 0) {
@@ -781,7 +775,6 @@ void blockForKeys(redisClient *c, robj **keys, int numkeys, mstime_t timeout, ro
             l = listCreate();
             retval = dictAdd(c->db->blocking_keys,keys[j],l);
             incrRefCount(keys[j]);
-            redisAssertWithInfo(c,keys[j],retval == DICT_OK);
         } else {
             l = dictGetVal(de);
         }
@@ -797,7 +790,6 @@ void unblockClientWaitingData(redisClient *c) {
     dictIterator *di;
     list *l;
 
-    redisAssertWithInfo(c,NULL,dictSize(c->bpop.keys) != 0);
     di = dictGetIterator(c->bpop.keys);
     /* The client may wait for multiple keys, so unblock it for every key. */
     while((de = dictNext(di)) != NULL) {
@@ -805,7 +797,6 @@ void unblockClientWaitingData(redisClient *c) {
 
         /* Remove this client from the list of clients waiting for this key. */
         l = dictFetchValue(c->db->blocking_keys,key);
-        redisAssertWithInfo(c,key,l != NULL);
         listDelNode(l,listSearchKey(l,c));
         /* If the list is empty we need to remove it to avoid wasting memory */
         if (listLength(l) == 0)
@@ -848,7 +839,6 @@ void signalListAsReady(redisDb *db, robj *key) {
      * to avoid adding it multiple times into a list with a simple O(1)
      * check. */
     incrRefCount(key);
-    redisAssert(dictAdd(db->ready_keys,key,NULL) == DICT_OK);
 }
 
 /* This is a helper function for handleClientsBlockedOnLists(). It's work
@@ -1027,7 +1017,6 @@ void blockingPopGenericCommand(redisClient *c, int where) {
                     /* Non empty list, this is like a non normal [LR]POP. */
                     char *event = (where == REDIS_HEAD) ? "lpop" : "rpop";
                     robj *value = listTypePop(o,where);
-                    redisAssert(value != NULL);
 
                     addReplyMultiBulkLen(c,2);
                     addReplyBulk(c,c->argv[j]);
@@ -1091,7 +1080,6 @@ void brpoplpushCommand(redisClient *c) {
         } else {
             /* The list exists and has elements, so
              * the regular rpoplpushCommand is executed. */
-            redisAssertWithInfo(c,key,listTypeLength(key) > 0);
             rpoplpushCommand(c);
         }
     }

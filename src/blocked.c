@@ -112,7 +112,6 @@ void processUnblockedClients(void) {
 
     while (listLength(server.unblocked_clients)) {
         ln = listFirst(server.unblocked_clients);
-        redisAssert(ln != NULL);
         c = ln->value;
         listDelNode(server.unblocked_clients,ln);
         c->flags &= ~REDIS_UNBLOCKED;
@@ -133,7 +132,7 @@ void unblockClient(redisClient *c) {
         unblockClientWaitingData(c);
     } else if (c->btype == REDIS_BLOCKED_WAIT) {
     } else {
-        redisPanic("Unknown btype in unblockClient().");
+		printf("Unknown btype in unblockClient().");
     }
     /* Clear the flags, and put the client in the unblocked list so that
      * we'll process new commands in its query buffer ASAP. */
@@ -152,7 +151,7 @@ void replyToBlockedClientTimedOut(redisClient *c) {
     } else if (c->btype == REDIS_BLOCKED_WAIT) {
         addReplyLongLong(c, 0);
     } else {
-        redisPanic("Unknown btype in replyToBlockedClientTimedOut().");
+		printf("Unknown btype in replyToBlockedClientTimedOut().");
     }
 }
 

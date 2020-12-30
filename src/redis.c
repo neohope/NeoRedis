@@ -249,7 +249,6 @@ struct redisCommand redisCommandTable[] = {
     {"ttl",ttlCommand,2,"rF",0,NULL,1,1,1,0,0},
     {"pttl",pttlCommand,2,"rF",0,NULL,1,1,1,0,0},
     {"persist",persistCommand,2,"wF",0,NULL,1,1,1,0,0},
-    {"debug",debugCommand,-2,"as",0,NULL,0,0,0,0,0},
     {"config",configCommand,-2,"art",0,NULL,0,0,0,0,0},
     {"watch",watchCommand,-2,"rsF",0,NULL,1,-1,1,0,0},
     {"unwatch",unwatchCommand,1,"rsF",0,NULL,0,0,0,0,0},
@@ -1019,10 +1018,6 @@ int serverCron(struct aeEventLoop *eventLoop, PORT_LONGLONG id, void *clientData
     REDIS_NOTUSED(id);
     REDIS_NOTUSED(clientData);
 
-    /* Software watchdog: deliver the SIGALRM that will reach the signal
-     * handler if we don't return here fast enough. */
-    if (server.watchdog_period) watchdogScheduleSignal(server.watchdog_period);
-
     /* Update the time cache. */
     updateCachedTime();
 
@@ -1717,7 +1712,7 @@ void initServer(void) {
     /* Create the serverCron() time event, that's our main way to process
      * background operations. */
     if(aeCreateTimeEvent(server.el, 1, serverCron, NULL, NULL) == AE_ERR) {
-        redisPanic("Can't create the serverCron time event.");
+		printf("Can't create the serverCron time event.");
         exit(1);
     }
 
@@ -1727,12 +1722,11 @@ void initServer(void) {
         if (aeCreateFileEvent(server.el, server.ipfd[j], AE_READABLE,
             acceptTcpHandler,NULL) == AE_ERR)
             {
-                redisPanic(
-                    "Unrecoverable error creating server.ipfd file event.");
+                printf("Unrecoverable error creating server.ipfd file event.");
             }
     }
     if (server.sofd > 0 && aeCreateFileEvent(server.el,server.sofd,AE_READABLE,
-        acceptUnixHandler,NULL) == AE_ERR) redisPanic("Unrecoverable error creating server.sofd file event.");
+        acceptUnixHandler,NULL) == AE_ERR) printf("Unrecoverable error creating server.sofd file event.");
 
     /* Open the AOF file if needed. */
     if (server.aof_state == REDIS_AOF_ON) {
@@ -1790,7 +1784,7 @@ void populateCommandTable(void) {
             case 'M': c->flags |= REDIS_CMD_SKIP_MONITOR; break;
             case 'k': c->flags |= REDIS_CMD_ASKING; break;
             case 'F': c->flags |= REDIS_CMD_FAST; break;
-            default: redisPanic("Unsupported command flag"); break;
+            default: printf("Unsupported command flag"); break;
             }
             f++;
         }
@@ -1799,7 +1793,6 @@ void populateCommandTable(void) {
         /* Populate an additional dictionary that will be unaffected
          * by rename-command statements in redis.conf. */
         retval2 = dictAdd(server.orig_commands, sdsnew(c->name), c);
-        redisAssert(retval1 == DICT_OK && retval2 == DICT_OK);
     }
 }
 
@@ -2386,9 +2379,6 @@ sds genRedisInfoString(char *section) {
         info = sdscatprintf(info,
             "# Server\r\n"
             "redis_version:%s\r\n"
-            "redis_git_sha1:%s\r\n"
-            "redis_git_dirty:%d\r\n"
-            "redis_build_id:%llx\r\n"
             "redis_mode:%s\r\n"
             "os:%s %s %s\r\n"
             "arch_bits:%d\r\n"
@@ -2403,9 +2393,6 @@ sds genRedisInfoString(char *section) {
             "lru_clock:%ld\r\n"
             "config_file:%s\r\n",
             REDIS_VERSION,
-            redisGitSHA1(),
-            strtol(redisGitDirty(),NULL,10) > 0,
-            (PORT_ULONGLONG) redisBuildId(),
             mode,
 #ifdef _WIN32
             "Windows", "", "",
@@ -2996,13 +2983,10 @@ void daemonize(void) {
 }
 
 void version(void) {
-    printf("Redis server v=%s sha=%s:%d malloc=%s bits=%d build=%llx\n",    /* TODO: verify %llx */
+    printf("Redis server v=%s malloc=%s bits=%d\n",    /* TODO: verify %llx */
         REDIS_VERSION,
-        redisGitSHA1(),
-        atoi(redisGitDirty()) > 0,
         ZMALLOC_LIB,
-        sizeof(PORT_LONG) == 4 ? 32 : 64,
-        (PORT_ULONGLONG) redisBuildId());
+        sizeof(PORT_LONG) == 4 ? 32 : 64);
     exit(0);
 }
 
@@ -3029,10 +3013,8 @@ void redisAsciiArt(void) {
 
     if (server.syslog_enabled) {
         redisLog(REDIS_NOTICE,
-            "Redis %s (%s/%d) %s bit, %s mode, port %d, pid %ld ready to start.",
+            "Redis %s %s bit, %s mode, port %d, pid %ld ready to start.",
             REDIS_VERSION,
-            redisGitSHA1(),
-            strtol(redisGitDirty(),NULL,10) > 0,
             (sizeof(PORT_LONG) == 8) ? "64" : "32",
             mode, server.port,
             (PORT_LONG) getpid()
@@ -3040,8 +3022,6 @@ void redisAsciiArt(void) {
     } else {
         snprintf(buf,1024*16,ascii_logo,
             REDIS_VERSION,
-            redisGitSHA1(),
-            strtol(redisGitDirty(),NULL,10) > 0,
             (sizeof(PORT_LONG) == 8) ? "64" : "32",
             mode, server.port,
             (PORT_LONG) getpid()
@@ -3124,10 +3104,9 @@ void loadDataFromDisk(void) {
 }
 
 void redisOutOfMemoryHandler(size_t allocation_size) {
-    WIN32_ONLY(bugReportStart();)
     redisLog(REDIS_WARNING, "Out Of Memory allocating %Iu bytes.",              WIN_PORT_FIX /* %zu -> %Iu */
         allocation_size);
-    IF_WIN32(abort(),redisPanic("Redis aborting for OUT OF MEMORY"));
+    IF_WIN32(abort(),printf("Redis aborting for OUT OF MEMORY"));
 }
 
 void redisSetProcTitle(char *title) {

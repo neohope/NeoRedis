@@ -58,7 +58,6 @@ POSIX_ONLY(#include <unistd.h>)
 #include "util.h"
 #include "config.h"
 #include "redis.h"
-#include "crc64.h"
 #include "config.h"
 
 /* ------------------------- Buffer I/O implementation ----------------------- */
@@ -290,12 +289,6 @@ void rioFreeFdset(rio *r) {
 
 /* ---------------------------- Generic functions ---------------------------- */
 
-/* This function can be installed both in memory and file streams when checksum
- * computation is needed. */
-void rioGenericUpdateChecksum(rio *r, const void *buf, size_t len) {
-    r->cksum = crc64(r->cksum,buf,len);
-}
-
 /* Set the file-based rio object to auto-fsync every 'bytes' file written.
  * By default this is set to zero that means no automatic file sync is
  * performed.
@@ -305,7 +298,6 @@ void rioGenericUpdateChecksum(rio *r, const void *buf, size_t len) {
  * disk I/O concentrated in very little time. When we fsync in an explicit
  * way instead the I/O pressure is more distributed across time. */
 void rioSetAutoSync(rio *r, off_t bytes) {
-    redisAssert(r->read == rioFileIO.read);
     r->io.file.autosync = bytes;
 }
 

@@ -168,7 +168,7 @@ robj *createStringObjectFromLongDouble(PORT_LONGDOUBLE value, int humanfriendly)
 robj *dupStringObject(robj *o) {
     robj *d;
 
-    redisAssert(o->type == REDIS_STRING);
+	printf(o->type == REDIS_STRING);
 
     switch(o->encoding) {
     case REDIS_ENCODING_RAW:
@@ -181,7 +181,7 @@ robj *dupStringObject(robj *o) {
         d->ptr = o->ptr;
         return d;
     default:
-        redisPanic("Wrong encoding.");
+		printf("Wrong encoding.");
         break;
     }
 }
@@ -255,7 +255,7 @@ void freeListObject(robj *o) {
         zfree(o->ptr);
         break;
     default:
-        redisPanic("Unknown list encoding type");
+		printf("Unknown list encoding type");
     }
 }
 
@@ -268,7 +268,7 @@ void freeSetObject(robj *o) {
         zfree(o->ptr);
         break;
     default:
-        redisPanic("Unknown set encoding type");
+		printf("Unknown set encoding type");
     }
 }
 
@@ -285,7 +285,7 @@ void freeZsetObject(robj *o) {
         zfree(o->ptr);
         break;
     default:
-        redisPanic("Unknown sorted set encoding");
+		printf("Unknown sorted set encoding");
     }
 }
 
@@ -298,7 +298,7 @@ void freeHashObject(robj *o) {
         zfree(o->ptr);
         break;
     default:
-        redisPanic("Unknown hash encoding type");
+		printf("Unknown hash encoding type");
         break;
     }
 }
@@ -308,7 +308,7 @@ void incrRefCount(robj *o) {
 }
 
 void decrRefCount(robj *o) {
-    if (o->refcount <= 0) redisPanic("decrRefCount against refcount <= 0");
+    if (o->refcount <= 0) printf("decrRefCount against refcount <= 0");
     if (o->refcount == 1) {
         switch(o->type) {
         case REDIS_STRING: freeStringObject(o); break;
@@ -316,7 +316,7 @@ void decrRefCount(robj *o) {
         case REDIS_SET: freeSetObject(o); break;
         case REDIS_ZSET: freeZsetObject(o); break;
         case REDIS_HASH: freeHashObject(o); break;
-        default: redisPanic("Unknown object type"); break;
+        default: printf("Unknown object type"); break;
         }
         zfree(o);
     } else {
@@ -357,7 +357,6 @@ int checkType(redisClient *c, robj *o, int type) {
 }
 
 int isObjectRepresentableAsLongLong(robj *o, PORT_LONGLONG *llval) {
-    redisAssertWithInfo(NULL,o,o->type == REDIS_STRING);
     if (o->encoding == REDIS_ENCODING_INT) {
         if (llval) *llval = (PORT_LONGLONG) o->ptr;
         return REDIS_OK;
@@ -376,7 +375,6 @@ robj *tryObjectEncoding(robj *o) {
      * in this function. Other types use encoded memory efficient
      * representations but are handled by the commands implementing
      * the type. */
-    redisAssertWithInfo(NULL,o,o->type == REDIS_STRING);
 
     /* We try some specialized encoding only for objects that are
      * RAW or EMBSTR encoded, in other words objects that are still
@@ -462,7 +460,7 @@ robj *getDecodedObject(robj *o) {
         dec = createStringObject(buf,strlen(buf));
         return dec;
     } else {
-        redisPanic("Unknown encoding type");
+		printf("Unknown encoding type");
     }
 }
 
@@ -478,7 +476,6 @@ robj *getDecodedObject(robj *o) {
 #define REDIS_COMPARE_COLL (1<<1)
 
 int compareStringObjectsWithFlags(robj *a, robj *b, int flags) {
-    redisAssertWithInfo(NULL,a,a->type == REDIS_STRING && b->type == REDIS_STRING);
     char bufa[128], bufb[128], *astr, *bstr;
     size_t alen, blen, minlen;
 
@@ -535,7 +532,6 @@ int equalStringObjects(robj *a, robj *b) {
 }
 
 size_t stringObjectLen(robj *o) {
-    redisAssertWithInfo(NULL,o,o->type == REDIS_STRING);
     if (sdsEncodedObject(o)) {
         return sdslen(o->ptr);
     } else {
@@ -552,7 +548,6 @@ int getDoubleFromObject(robj *o, double *target) {
     if (o == NULL) {
         value = 0;
     } else {
-        redisAssertWithInfo(NULL,o,o->type == REDIS_STRING);
         if (sdsEncodedObject(o)) {
             errno = 0;
             value = strtod(o->ptr, &eptr);
@@ -566,7 +561,7 @@ int getDoubleFromObject(robj *o, double *target) {
         } else if (o->encoding == REDIS_ENCODING_INT) {
             value = (PORT_LONG)o->ptr;
         } else {
-            redisPanic("Unknown string encoding");
+            printf("Unknown string encoding");
         }
     }
     *target = value;
@@ -594,7 +589,6 @@ int getLongDoubleFromObject(robj *o, PORT_LONGDOUBLE *target) {
     if (o == NULL) {
         value = 0;
     } else {
-        redisAssertWithInfo(NULL,o,o->type == REDIS_STRING);
         if (sdsEncodedObject(o)) {
             errno = 0;
             value = IF_WIN32(wstrtod,strtold)(o->ptr,&eptr);                    // TODO: verify for 32-bit
@@ -604,7 +598,7 @@ int getLongDoubleFromObject(robj *o, PORT_LONGDOUBLE *target) {
         } else if (o->encoding == REDIS_ENCODING_INT) {
             value = (PORT_LONG)o->ptr;
         } else {
-            redisPanic("Unknown string encoding");
+            printf("Unknown string encoding");
         }
     }
     *target = value;
@@ -632,7 +626,6 @@ int getLongLongFromObject(robj *o, PORT_LONGLONG *target) {
     if (o == NULL) {
         value = 0;
     } else {
-        redisAssertWithInfo(NULL,o,o->type == REDIS_STRING);
         if (sdsEncodedObject(o)) {
             errno = 0;
             value = strtoll(o->ptr, &eptr, 10);
@@ -642,7 +635,7 @@ int getLongLongFromObject(robj *o, PORT_LONGLONG *target) {
         } else if (o->encoding == REDIS_ENCODING_INT) {
             value = (PORT_LONG)o->ptr;
         } else {
-            redisPanic("Unknown string encoding");
+            printf("Unknown string encoding");
         }
     }
     if (target) *target = value;

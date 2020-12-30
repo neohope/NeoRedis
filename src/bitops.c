@@ -195,7 +195,7 @@ PORT_LONG redisBitpos(void *s, PORT_ULONG count, int bit) {
 
     /* If we reached this point, there is a bug in the algorithm, since
      * the case of no match is handled as a special case before. */
-    redisPanic("End of redisBitpos() reached.");
+	printf("End of redisBitpos() reached.");
     return 0; /* Just to avoid warnings. */
 }
 

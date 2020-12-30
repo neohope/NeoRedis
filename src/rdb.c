@@ -191,7 +191,7 @@ robj *rdbLoadIntegerObject(rio *rdb, int enctype, int encode) {
         val = (int32_t)v;
     } else {
         val = 0; /* anti-warning */
-        redisPanic("Unknown RDB integer encoding type");
+		printf("Unknown RDB integer encoding type");
     }
     if (encode)
         return createStringObjectFromLongLong(val);
@@ -318,7 +318,6 @@ int rdbSaveLongLongAsStringObject(rio *rdb, PORT_LONGLONG value) {
     } else {
         /* Encode as string */
         enclen = ll2string((char*)buf,32,value);
-        redisAssert(enclen < 32);
         if ((n = rdbSaveLen(rdb,enclen)) == -1) return -1;
         nwritten += n;
         if ((n = rdbWriteRaw(rdb,buf,enclen)) == -1) return -1;
@@ -334,7 +333,6 @@ int rdbSaveStringObject(rio *rdb, robj *obj) {
     if (obj->encoding == REDIS_ENCODING_INT) {
         return rdbSaveLongLongAsStringObject(rdb, (PORT_LONG) obj->ptr);
     } else {
-        redisAssertWithInfo(NULL,obj,sdsEncodedObject(obj));
         return rdbSaveRawString(rdb,obj->ptr,sdslen(obj->ptr));
     }
 }
@@ -354,7 +352,7 @@ robj *rdbGenericLoadStringObject(rio *rdb, int encode) {
         case REDIS_RDB_ENC_LZF:
             return rdbLoadLzfStringObject(rdb);
         default:
-            redisPanic("Unknown RDB encoding type");
+            printf("Unknown RDB encoding type");
         }
     }
 
@@ -462,30 +460,30 @@ int rdbSaveObjectType(rio *rdb, robj *o) {
         else if (o->encoding == REDIS_ENCODING_LINKEDLIST)
             return rdbSaveType(rdb,REDIS_RDB_TYPE_LIST);
         else
-            redisPanic("Unknown list encoding");
+            printf("Unknown list encoding");
     case REDIS_SET:
         if (o->encoding == REDIS_ENCODING_INTSET)
             return rdbSaveType(rdb,REDIS_RDB_TYPE_SET_INTSET);
         else if (o->encoding == REDIS_ENCODING_HT)
             return rdbSaveType(rdb,REDIS_RDB_TYPE_SET);
         else
-            redisPanic("Unknown set encoding");
+            printf("Unknown set encoding");
     case REDIS_ZSET:
         if (o->encoding == REDIS_ENCODING_ZIPLIST)
             return rdbSaveType(rdb,REDIS_RDB_TYPE_ZSET_ZIPLIST);
         else if (o->encoding == REDIS_ENCODING_SKIPLIST)
             return rdbSaveType(rdb,REDIS_RDB_TYPE_ZSET);
         else
-            redisPanic("Unknown sorted set encoding");
+            printf("Unknown sorted set encoding");
     case REDIS_HASH:
         if (o->encoding == REDIS_ENCODING_ZIPLIST)
             return rdbSaveType(rdb,REDIS_RDB_TYPE_HASH_ZIPLIST);
         else if (o->encoding == REDIS_ENCODING_HT)
             return rdbSaveType(rdb,REDIS_RDB_TYPE_HASH);
         else
-            redisPanic("Unknown hash encoding");
+            printf("Unknown hash encoding");
     default:
-        redisPanic("Unknown object type");
+        printf("Unknown object type");
     }
     return -1; /* avoid warning */
 }
@@ -529,7 +527,7 @@ int rdbSaveObject(rio *rdb, robj *o) {
                 nwritten += n;
             }
         } else {
-            redisPanic("Unknown list encoding");
+            printf("Unknown list encoding");
         }
     } else if (o->type == REDIS_SET) {
         /* Save a set value */
@@ -553,7 +551,7 @@ int rdbSaveObject(rio *rdb, robj *o) {
             if ((n = rdbSaveRawString(rdb,o->ptr,l)) == -1) return -1;
             nwritten += n;
         } else {
-            redisPanic("Unknown set encoding");
+            printf("Unknown set encoding");
         }
     } else if (o->type == REDIS_ZSET) {
         /* Save a sorted set value */
@@ -581,7 +579,7 @@ int rdbSaveObject(rio *rdb, robj *o) {
             }
             dictReleaseIterator(di);
         } else {
-            redisPanic("Unknown sorted set encoding");
+			printf("Unknown sorted set encoding");
         }
     } else if (o->type == REDIS_HASH) {
         /* Save a hash value */
@@ -610,11 +608,11 @@ int rdbSaveObject(rio *rdb, robj *o) {
             dictReleaseIterator(di);
 
         } else {
-            redisPanic("Unknown hash encoding");
+            printf("Unknown hash encoding");
         }
 
     } else {
-        redisPanic("Unknown object type");
+        printf("Unknown object type");
     }
     return nwritten;
 }
@@ -625,7 +623,6 @@ int rdbSaveObject(rio *rdb, robj *o) {
  * we could switch to a faster solution. */
 off_t rdbSavedObjectLen(robj *o) {
     int len = rdbSaveObject(NULL,o);
-    redisAssertWithInfo(NULL,o,len != -1);
     return (off_t)len;                                                          WIN_PORT_FIX /* cast (off_t) */
 }
 
@@ -667,8 +664,6 @@ int rdbSaveRio(rio *rdb, int *error) {
     PORT_LONGLONG now = mstime();
     uint64_t cksum;
 
-    if (server.rdb_checksum)
-        rdb->update_cksum = rioGenericUpdateChecksum;
     snprintf(magic,sizeof(magic),"REDIS%04d",REDIS_RDB_VERSION);
     if (rdbWriteRaw(rdb,magic,9) == -1) goto werr;
 
@@ -982,10 +977,8 @@ robj *rdbLoadObject(int rdbtype, rio *rdb) {
             /* Load raw strings */
             field = rdbLoadStringObject(rdb);
             if (field == NULL) return NULL;
-            redisAssert(sdsEncodedObject(field));
             value = rdbLoadStringObject(rdb);
             if (value == NULL) return NULL;
-            redisAssert(sdsEncodedObject(value));
 
             /* Add pair to ziplist */
             o->ptr = ziplistPush(o->ptr, field->ptr, (unsigned int)sdslen(field->ptr), ZIPLIST_TAIL);   WIN_PORT_FIX /* cast (unsigned int) */
@@ -1019,11 +1012,7 @@ robj *rdbLoadObject(int rdbtype, rio *rdb) {
 
             /* Add pair to hash table */
             ret = dictAdd((dict*)o->ptr, field, value);
-            redisAssert(ret == DICT_OK);
         }
-
-        /* All pairs should be read by now */
-        redisAssert(len == 0);
 
     } else if (rdbtype == REDIS_RDB_TYPE_HASH_ZIPMAP  ||
                rdbtype == REDIS_RDB_TYPE_LIST_ZIPLIST ||
@@ -1100,11 +1089,11 @@ robj *rdbLoadObject(int rdbtype, rio *rdb) {
                     hashTypeConvert(o, REDIS_ENCODING_HT);
                 break;
             default:
-                redisPanic("Unknown encoding");
+                printf("Unknown encoding");
                 break;
         }
     } else {
-        redisPanic("Unknown object type");
+        printf("Unknown object type");
     }
     return o;
 }
@@ -1140,8 +1129,6 @@ void stopLoading(void) {
 /* Track loading progress in order to serve client's from time to time
    and if needed calculate rdb checksum  */
 void rdbLoadProgressCallback(rio *r, const void *buf, size_t len) {
-    if (server.rdb_checksum)
-        rioGenericUpdateChecksum(r, buf, len);
     if (server.loading_process_events_interval_bytes &&
         (r->processed_bytes + len)/server.loading_process_events_interval_bytes > r->processed_bytes/server.loading_process_events_interval_bytes)
     {
@@ -1305,7 +1292,7 @@ void backgroundSaveDoneHandler(int exitcode, int bysignal) {
         backgroundSaveDoneHandlerDisk(exitcode,bysignal);
         break;
     default:
-        redisPanic("Unknown RDB child type.");
+        printf("Unknown RDB child type.");
         break;
     }
 }

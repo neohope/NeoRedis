@@ -363,11 +363,6 @@ POSIX_ONLY(#define REDIS_DEFAULT_VERBOSITY REDIS_NOTICE)
  * The actual resolution depends on server.hz. */
 #define run_with_period(_ms_) if ((_ms_ <= 1000/server.hz) || !(server.cronloops%((_ms_)/(1000/server.hz))))
 
-/* We can print the stacktrace, so our assert is defined this way: */
-#define redisAssertWithInfo(_c,_o,_e) ((_e)?(void)0 : (_redisAssertWithInfo(_c,_o,#_e,__FILE__,__LINE__),_exit(1)))
-#define redisAssert(_e) ((_e)?(void)0 : (_redisAssert(#_e,__FILE__,__LINE__),_exit(1)))
-#define redisPanic(_e) _redisPanic(#_e,__FILE__,__LINE__),_exit(1)
-
 /*-----------------------------------------------------------------------------
  * Data types
  *----------------------------------------------------------------------------*/
@@ -880,7 +875,6 @@ extern dictType replScriptCacheDictType;
 PORT_LONGLONG ustime(void);
 PORT_LONGLONG mstime(void);
 void getRandomHexChars(char *p, unsigned int len);
-uint64_t crc64(uint64_t crc, const unsigned char *s, uint64_t l);
 void exitFromChild(int retcode);
 size_t redisPopcount(void *s, PORT_LONG count);
 void redisSetProcTitle(char *title);
@@ -1183,10 +1177,7 @@ void replyToBlockedClientTimedOut(redisClient *c);
 int getTimeoutFromObjectOrReply(redisClient *c, robj *object, mstime_t *timeout, int unit);
 void disconnectAllBlockedClients(void);
 
-/* Git SHA1 */
-char *redisGitSHA1(void);
-char *redisGitDirty(void);
-uint64_t redisBuildId(void);
+/* Git SHA1  Removed */
 
 /* Commands prototypes */
 void authCommand(redisClient *c);
@@ -1335,17 +1326,8 @@ void *realloc(void *ptr, size_t size) __attribute__ ((deprecated));
 #endif
 
 /* Debugging stuff */
-void _redisAssertWithInfo(redisClient *c, robj *o, char *estr, char *file, int line);
-void _redisAssert(char *estr, char *file, int line);
-void _redisPanic(char *msg, char *file, int line);
-void bugReportStart(void);
-void redisLogObjectDebugInfo(robj *o);
 POSIX_ONLY(void sigsegvHandler(int sig, siginfo_t *info, void *secret);)
 sds genRedisInfoString(char *section);
-void enableWatchdog(int period);
-void disableWatchdog(void);
-void watchdogScheduleSignal(int period);
-void redisLogHexDump(int level, char *descr, void *value, size_t len);
 
 #define redisDebug(fmt, ...) \
     printf("DEBUG %s:%d > " fmt "\n", __FILE__, __LINE__, __VA_ARGS__)

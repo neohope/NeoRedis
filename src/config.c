@@ -405,7 +405,6 @@ void loadServerConfigFromString(char *config) {
             /* If the target command name is the empty string we just
              * remove it from the command table. */
             retval = dictDelete(server.commands, argv[1]);
-            redisAssert(retval == DICT_OK);
 
             /* Otherwise we re-add the command under a different name. */
             if (sdslen(argv[2]) != 0) {
@@ -472,9 +471,7 @@ void loadServerConfigFromString(char *config) {
                 bgrewriteaof = sdsnew("bgrewriteaof");
 
                 retval = dictDelete(server.commands, bgsave);
-                redisAssert(retval == DICT_OK);
                 retval = dictDelete(server.commands, bgrewriteaof);
-                redisAssert(retval == DICT_OK);
 
                 sdsfree(bgsave);
                 sdsfree(bgrewriteaof);
@@ -549,8 +546,7 @@ void configSetCommand(redisClient *c) {
     robj *o;
     PORT_LONGLONG ll;
     int err;
-    redisAssertWithInfo(c,c->argv[2],sdsEncodedObject(c->argv[2]));
-    redisAssertWithInfo(c,c->argv[3],sdsEncodedObject(c->argv[3]));
+
     o = c->argv[3];
 
     if (!strcasecmp(c->argv[2]->ptr,"dbfilename")) {
@@ -819,12 +815,6 @@ void configSetCommand(redisClient *c) {
 
         if (yn == -1) goto badfmt;
         server.stop_writes_on_bgsave_err = yn;
-    } else if (!strcasecmp(c->argv[2]->ptr,"watchdog-period")) {
-        if (getLongLongFromObject(o,&ll) == REDIS_ERR || ll < 0) goto badfmt;
-        if (ll)
-            enableWatchdog((int)ll);                                            WIN_PORT_FIX /* cast (int) */
-        else
-            disableWatchdog();
     } else if (!strcasecmp(c->argv[2]->ptr,"rdbcompression")) {
         int yn = yesnotoi(o->ptr);
 
@@ -884,7 +874,6 @@ void configGetCommand(redisClient *c) {
     char *pattern = o->ptr;
     char buf[128];
     int matches = 0;
-    redisAssertWithInfo(c,o,sdsEncodedObject(o));
 
     /* String values */
     config_get_string_field("dbfilename",server.rdb_filename);

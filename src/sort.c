@@ -297,7 +297,7 @@ void sortCommand(redisClient *c) {
     case REDIS_LIST: vectorlen = (int)listTypeLength(sortval); break;           WIN_PORT_FIX /* cast (int) */
     case REDIS_SET: vectorlen =  (int)setTypeSize(sortval); break;              WIN_PORT_FIX /* cast (int) */
     case REDIS_ZSET: vectorlen = (int)dictSize(((zset*)sortval->ptr)->dict); break; WIN_PORT_FIX /* cast (int) */
-    default: vectorlen = 0; redisPanic("Bad SORT type"); /* Avoid GCC warning */
+    default: vectorlen = 0; printf("Bad SORT type"); /* Avoid GCC warning */
     }
 
     /* Perform LIMIT start,count sanity checking. */
@@ -378,7 +378,6 @@ void sortCommand(redisClient *c) {
         }
 
         while(rangelen--) {
-            redisAssertWithInfo(c,sortval,ln != NULL);
             ele = ln->obj;
             vector[j].obj = ele;
             vector[j].u.score = 0;
@@ -405,9 +404,8 @@ void sortCommand(redisClient *c) {
         }
         dictReleaseIterator(di);
     } else {
-        redisPanic("Unknown type");
+        printf("Unknown type");
     }
-    redisAssertWithInfo(c,sortval,j == vectorlen);
 
     /* Now it's time to load the right scores in the sorting vector */
     if (dontsort == 0) {
@@ -440,7 +438,6 @@ void sortCommand(redisClient *c) {
                      * far. We can just cast it */
                     vector[j].u.score = (PORT_LONG) byval->ptr;
                 } else {
-                    redisAssertWithInfo(c,sortval,1 != 1);
                 }
             }
 
@@ -491,7 +488,6 @@ void sortCommand(redisClient *c) {
                     }
                 } else {
                     /* Always fails */
-                    redisAssertWithInfo(c,sortval,sop->type == REDIS_SORT_GET);
                 }
             }
         }
@@ -522,7 +518,6 @@ void sortCommand(redisClient *c) {
                         decrRefCount(val);
                     } else {
                         /* Always fails */
-                        redisAssertWithInfo(c,sortval,sop->type == REDIS_SORT_GET);
                     }
                 }
             }

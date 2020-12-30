@@ -215,7 +215,6 @@ void aof_background_fsync(int fd) {
 /* Called when the user switches from "appendonly yes" to "appendonly no"
  * at runtime using the CONFIG command. */
 void stopAppendOnly(void) {
-    redisAssert(server.aof_state != REDIS_AOF_OFF);
     flushAppendOnlyFile(1);
     aof_fsync(server.aof_fd);
     close(server.aof_fd);
@@ -250,7 +249,6 @@ void stopAppendOnly(void) {
 int startAppendOnly(void) {
     server.aof_last_fsync = server.unixtime;
     server.aof_fd = open(server.aof_filename,O_WRONLY|O_APPEND|O_CREAT WIN32_ONLY(|_O_BINARY),IF_WIN32(_S_IREAD|_S_IWRITE,0644));
-    redisAssert(server.aof_state == REDIS_AOF_OFF);
     if (server.aof_fd == -1) {
         redisLog(REDIS_WARNING,"Redis needs to enable the AOF but can't open the append only file: %s",strerror(errno));
         return REDIS_ERR;
@@ -698,9 +696,7 @@ int loadAppendOnlyFile(char *filename) {
         cmd->proc(fakeClient);
 
         /* The fake client should not have a reply */
-        redisAssert(fakeClient->bufpos == 0 && listLength(fakeClient->reply) == 0);
         /* The fake client should never get blocked */
-        redisAssert((fakeClient->flags & REDIS_BLOCKED) == 0);
 
         /* Clean up. Command code may have changed argv/argc so we use the
          * argv/argc of the client instead of the local variables. */
@@ -774,7 +770,7 @@ int rioWriteBulkObject(rio *r, robj *obj) {
     } else if (sdsEncodedObject(obj)) {
         return (int) rioWriteBulkString(r,obj->ptr,sdslen(obj->ptr));           WIN_PORT_FIX /* cast (int) */
     } else {
-        redisPanic("Unknown string encoding");
+		printf("Unknown string encoding");
     }
 }
 
@@ -830,7 +826,7 @@ int rewriteListObject(rio *r, robj *key, robj *o) {
             items--;
         }
     } else {
-        redisPanic("Unknown list encoding");
+		printf("Unknown list encoding");
     }
     return 1;
 }
@@ -877,7 +873,7 @@ int rewriteSetObject(rio *r, robj *key, robj *o) {
         }
         dictReleaseIterator(di);
     } else {
-        redisPanic("Unknown set encoding");
+		printf("Unknown set encoding");
     }
     return 1;
 }
@@ -896,12 +892,9 @@ int rewriteSortedSetObject(rio *r, robj *key, robj *o) {
         double score;
 
         eptr = ziplistIndex(zl,0);
-        redisAssert(eptr != NULL);
         sptr = ziplistNext(zl,eptr);
-        redisAssert(sptr != NULL);
 
         while (eptr != NULL) {
-            redisAssert(ziplistGet(eptr,&vstr,&vlen,&vll));
             score = zzlGetScore(sptr);
 
             if (count == 0) {
@@ -946,7 +939,7 @@ int rewriteSortedSetObject(rio *r, robj *key, robj *o) {
         }
         dictReleaseIterator(di);
     } else {
-        redisPanic("Unknown sorted zset encoding");
+        printf("Unknown sorted zset encoding");
     }
     return 1;
 }
@@ -977,7 +970,6 @@ static int rioWriteHashIteratorCursor(rio *r, hashTypeIterator *hi, int what) {
         return rioWriteBulkObject(r, value);
     }
 
-    redisPanic("Unknown hash encoding");
     return 0;
 }
 
@@ -1102,7 +1094,7 @@ int rewriteAppendOnlyFile(char *filename) {
             } else if (o->type == REDIS_HASH) {
                 if (rewriteHashObject(&aof,&key,o) == 0) goto werr;
             } else {
-                redisPanic("Unknown object type");
+                printf("Unknown object type");
             }
             /* Save the expire time */
             if (expiretime != -1) {

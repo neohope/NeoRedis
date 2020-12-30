@@ -192,7 +192,7 @@ void *bioProcessBackgroundJobs(void *arg) {
         } else if (type == REDIS_BIO_AOF_FSYNC) {
             aof_fsync((int) job->arg1);                                         WIN_PORT_FIX /* cast (long) -> (int) */
         } else {
-            redisPanic("Wrong job type in bioProcessBackgroundJobs().");
+			printf("Wrong job type in bioProcessBackgroundJobs().");
         }
         zfree(job);
 

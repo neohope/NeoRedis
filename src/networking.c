@@ -54,7 +54,6 @@ size_t zmalloc_size_sds(sds s) {
 /* Return the amount of memory used by the sds string at object->ptr
  * for a string object. */
 size_t getStringObjectSdsUsedMemory(robj *o) {
-    redisAssertWithInfo(NULL,o,o->type == REDIS_STRING);
     switch(o->encoding) {
     case REDIS_ENCODING_RAW: return zmalloc_size_sds(o->ptr);
     case REDIS_ENCODING_EMBSTR: return sdslen(o->ptr);
@@ -173,7 +172,6 @@ int prepareClientToWrite(redisClient *c) {
 robj *dupLastObjectIfNeeded(list *reply) {
     robj *new, *cur;
     listNode *ln;
-    redisAssert(listLength(reply) > 0);
     ln = listLast(reply);
     cur = listNodeValue(ln);
     if (cur->refcount > 1) {
@@ -336,7 +334,7 @@ void addReply(redisClient *c, robj *obj) {
             _addReplyObjectToList(c,obj);
         decrRefCount(obj);
     } else {
-        redisPanic("Wrong obj->encoding in addReply()");
+		printf("Wrong obj->encoding in addReply()");
     }
 }
 
@@ -681,7 +679,6 @@ void freeClient(redisClient *c) {
     /* Remove from the list of clients */
     if (c->fd != -1) {
         ln = listSearchKey(server.clients,c);
-        redisAssert(ln != NULL);
         listDelNode(server.clients,ln);
     }
 
@@ -689,7 +686,6 @@ void freeClient(redisClient *c) {
      * remove it from the list of unblocked clients. */
     if (c->flags & REDIS_UNBLOCKED) {
         ln = listSearchKey(server.unblocked_clients,c);
-        redisAssert(ln != NULL);
         listDelNode(server.unblocked_clients,ln);
     }
 
@@ -697,7 +693,6 @@ void freeClient(redisClient *c) {
      * from the queue. */
     if (c->flags & REDIS_CLOSE_ASAP) {
         ln = listSearchKey(server.clients_to_close,c);
-        redisAssert(ln != NULL);
         listDelNode(server.clients_to_close,ln);
     }
 
@@ -1012,7 +1007,6 @@ int processMultibulkBuffer(redisClient *c) {
 
     if (c->multibulklen == 0) {
         /* The client should have been reset */
-        redisAssertWithInfo(c,NULL,c->argc == 0);
 
         /* Multi bulk length cannot be read without a \r\n */
         newline = strchr(c->querybuf,'\r');
@@ -1030,7 +1024,7 @@ int processMultibulkBuffer(redisClient *c) {
 
         /* We know for sure there is a whole line since newline != NULL,
          * so go ahead and find out the multi bulk length. */
-        redisAssertWithInfo(c,NULL,c->querybuf[0] == '*');
+
         ok = string2ll(c->querybuf+1,newline-(c->querybuf+1),&ll);
         if (!ok || ll > 1024*1024) {
             addReplyError(c,"Protocol error: invalid multibulk length");
@@ -1051,7 +1045,6 @@ int processMultibulkBuffer(redisClient *c) {
         c->argv = zmalloc(sizeof(robj*)*c->multibulklen);
     }
 
-    redisAssertWithInfo(c,NULL,c->multibulklen > 0);
     while(c->multibulklen) {
         /* Read bulk length if unknown */
         if (c->bulklen == -1) {
@@ -1171,7 +1164,7 @@ void processInputBuffer(redisClient *c) {
         } else if (c->reqtype == REDIS_REQ_MULTIBULK) {
             if (processMultibulkBuffer(c) != REDIS_OK) break;
         } else {
-            redisPanic("Unknown request type");
+			printf("Unknown request type");
         }
 
         /* Multibulk processing could see a <= 0 length. */
@@ -1545,7 +1538,6 @@ void rewriteClientCommandVector(redisClient *c, int argc, ...) {
     c->argv = argv;
     c->argc = argc;
     c->cmd = lookupCommandOrOriginal(c->argv[0]->ptr);
-    redisAssertWithInfo(c,NULL,c->cmd != NULL);
     va_end(ap);
 }
 
@@ -1554,7 +1546,6 @@ void rewriteClientCommandVector(redisClient *c, int argc, ...) {
 void rewriteClientCommandArgument(redisClient *c, int i, robj *newval) {
     robj *oldval;
 
-    redisAssertWithInfo(c,NULL,i < c->argc);
     oldval = c->argv[i];
     c->argv[i] = newval;
     incrRefCount(newval);
@@ -1563,7 +1554,6 @@ void rewriteClientCommandArgument(redisClient *c, int i, robj *newval) {
     /* If this is the command name make sure to fix c->cmd. */
     if (i == 0) {
         c->cmd = lookupCommandOrOriginal(c->argv[0]->ptr);
-        redisAssertWithInfo(c,NULL,c->cmd != NULL);
     }
 }
 

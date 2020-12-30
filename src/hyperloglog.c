@@ -877,7 +877,6 @@ promote: /* Promote to dense representation. */
      * is propagated to slaves / AOF, so if there is a sparse -> dense
      * convertion, it will be performed in all the slaves as well. */
     int dense_retval = hllDenseAdd(hdr->registers, ele, elesize);
-    redisAssert(dense_retval == 1);
     return dense_retval;
 }
 
@@ -991,7 +990,7 @@ uint64_t hllCount(struct hllhdr *hdr, int *invalid) {
     } else if (hdr->encoding == HLL_RAW) {
         E = hllRawSum(hdr->registers,PE,&ez);
     } else {
-        redisPanic("Unknown HyperLogLog encoding in hllCount()");
+			printf("Unknown HyperLogLog encoding in hllCount()");
     }
 
     /* Muliply the inverse of E for alpha_m * m^2 to have the raw estimate. */
@@ -1108,7 +1107,6 @@ robj *createHLLObject(void) {
         p += 2;
         aux -= xzero;
     }
-    redisAssert((p-(uint8_t*)s) == sparselen);
 
     /* Create the actual object. */
     o = createObject(REDIS_STRING,s);

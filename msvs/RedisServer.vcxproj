@@ -195,9 +195,7 @@
     <ClCompile Include="..\src\bitops.c" />
     <ClCompile Include="..\src\blocked.c" />
     <ClCompile Include="..\src\config.c" />
-    <ClCompile Include="..\src\crc64.c" />
     <ClCompile Include="..\src\db.c" />
-    <ClCompile Include="..\src\debug.c" />
     <ClCompile Include="..\src\dict.c" />
     <ClCompile Include="..\src\endianconv.c" />
     <ClCompile Include="..\src\hyperloglog.c" />
@@ -213,7 +211,6 @@
     <ClCompile Include="..\src\rand.c" />
     <ClCompile Include="..\src\rdb.c" />
     <ClCompile Include="..\src\redis.c" />
-    <ClCompile Include="..\src\release.c" />
     <ClCompile Include="..\src\rio.c" />
     <ClCompile Include="..\src\sds.c" />
     <ClCompile Include="..\src\sha1.c" />
@@ -249,7 +246,6 @@
     <ClInclude Include="..\src\rand.h" />
     <ClInclude Include="..\src\rdb.h" />
     <ClInclude Include="..\src\redis.h" />
-    <ClInclude Include="..\src\redisassert.h" />
     <ClInclude Include="..\src\rio.h" />
     <ClInclude Include="..\src\sds.h" />
     <ClInclude Include="..\src\sha1.h" />
