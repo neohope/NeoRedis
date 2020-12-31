@@ -35,7 +35,6 @@
 #endif
 
 #include "redis.h"
-#include "slowlog.h"
 #include "bio.h"
 #include "latency.h"
 
@@ -254,7 +253,6 @@ struct redisCommand redisCommandTable[] = {
     {"unwatch",unwatchCommand,1,"rsF",0,NULL,0,0,0,0,0},
     {"object",objectCommand,3,"r",0,NULL,2,2,2,0,0},
     {"client",clientCommand,-2,"rs",0,NULL,0,0,0,0,0},
-    {"slowlog",slowlogCommand,-2,"r",0,NULL,0,0,0,0,0},
     {"time",timeCommand,1,"rRF",0,NULL,0,0,0,0,0},
     {"bitop",bitopCommand,-4,"wm",0,NULL,2,-1,1,0,0},
     {"bitcount",bitcountCommand,-2,"r",0,NULL,1,1,1,0,0},
@@ -1754,7 +1752,6 @@ void initServer(void) {
         server.maxmemory_policy = REDIS_MAXMEMORY_NO_EVICTION;
     }
 
-    slowlogInit();
     latencyMonitorInit();
     bioInit();
 }
@@ -1925,7 +1922,6 @@ void call(redisClient *c, int flags) {
         char *latency_event = (c->cmd->flags & REDIS_CMD_FAST) ?
                               "fast-command" : "command";
         latencyAddSampleIfNeeded(latency_event,duration/1000);
-        slowlogPushEntryIfNeeded(c->argv,c->argc,duration);
     }
     if (flags & REDIS_CALL_STATS) {
         c->cmd->microseconds += duration;

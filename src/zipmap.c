@@ -125,7 +125,6 @@ static unsigned int zipmapEncodeLength(unsigned char *p, unsigned int len) {
         } else {
             p[0] = ZIPMAP_BIGLEN;
             memcpy(p+1,&len,sizeof(len));
-            memcpy(p+1,&len,sizeof(len));
             return 1+sizeof(len);
         }
     }

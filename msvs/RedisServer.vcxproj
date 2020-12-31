@@ -212,7 +212,6 @@
     <ClCompile Include="..\src\rio.c" />
     <ClCompile Include="..\src\sds.c" />
     <ClCompile Include="..\src\sha1.c" />
-    <ClCompile Include="..\src\slowlog.c" />
     <ClCompile Include="..\src\sort.c" />
     <ClCompile Include="..\src\syncio.c" />
     <ClCompile Include="..\src\t_hash.c" />
@@ -245,7 +244,6 @@
     <ClInclude Include="..\src\rio.h" />
     <ClInclude Include="..\src\sds.h" />
     <ClInclude Include="..\src\sha1.h" />
-    <ClInclude Include="..\src\slowlog.h" />
     <ClInclude Include="..\src\testhelp.h" />
     <ClInclude Include="..\src\util.h" />
     <ClInclude Include="..\src\ziplist.h" />
