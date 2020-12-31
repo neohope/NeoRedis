@@ -513,49 +513,6 @@ void latencyCommandReplyWithLatestEvents(redisClient *c) {
 }
 
 #define LATENCY_GRAPH_COLS 80
-sds latencyCommandGenSparkeline(char *event, struct latencyTimeSeries *ts) {
-    int j;
-    struct sequence *seq = createSparklineSequence();
-    sds graph = sdsempty();
-    uint32_t min = 0, max = 0;
-
-    for (j = 0; j < LATENCY_TS_LEN; j++) {
-        int i = (ts->idx + j) % LATENCY_TS_LEN;
-        int elapsed;
-        char buf[64];
-
-        if (ts->samples[i].time == 0) continue;
-        /* Update min and max. */
-        if (seq->length == 0) {
-            min = max = ts->samples[i].latency;
-        } else {
-            if (ts->samples[i].latency > max) max = ts->samples[i].latency;
-            if (ts->samples[i].latency < min) min = ts->samples[i].latency;
-        }
-        /* Use as label the number of seconds / minutes / hours / days
-         * ago the event happened. */
-        elapsed = (int)(time(NULL) - ts->samples[i].time);                      WIN_PORT_FIX /* cast (int) */
-        if (elapsed < 60)
-            snprintf(buf,sizeof(buf),"%ds",elapsed);
-        else if (elapsed < 3600)
-            snprintf(buf,sizeof(buf),"%dm",elapsed/60);
-        else if (elapsed < 3600*24)
-            snprintf(buf,sizeof(buf),"%dh",elapsed/3600);
-        else
-            snprintf(buf,sizeof(buf),"%dd",elapsed/(3600*24));
-        sparklineSequenceAddSample(seq,ts->samples[i].latency,buf);
-    }
-
-    graph = sdscatprintf(graph,
-        "%s - high %Iu ms, low %Iu ms (all time high %Iu ms)\n", event,         WIN_PORT_FIX /* %ld -> %Id, %lu -> %Iu */
-        (PORT_ULONG) max, (PORT_ULONG) min, (PORT_ULONG) ts->max);
-    for (j = 0; j < LATENCY_GRAPH_COLS; j++)
-        graph = sdscatlen(graph,"-",1);
-    graph = sdscatlen(graph,"\n",1);
-    graph = sparklineRender(graph,seq,LATENCY_GRAPH_COLS,4,SPARKLINE_FILL);
-    freeSparklineSequence(seq);
-    return graph;
-}
 
 /* LATENCY command implementations.
  *
@@ -575,20 +532,6 @@ void latencyCommand(redisClient *c) {
         } else {
             latencyCommandReplyWithSamples(c,ts);
         }
-    } else if (!strcasecmp(c->argv[1]->ptr,"graph") && c->argc == 3) {
-        /* LATENCY GRAPH <event> */
-        sds graph;
-        dictEntry *de;
-        char *event;
-
-        de = dictFind(server.latency_events,c->argv[2]->ptr);
-        if (de == NULL) goto nodataerr;
-        ts = dictGetVal(de);
-        event = dictGetKey(de);
-
-        graph = latencyCommandGenSparkeline(event,ts);
-        addReplyBulkCString(c,graph);
-        sdsfree(graph);
     } else if (!strcasecmp(c->argv[1]->ptr,"latest") && c->argc == 2) {
         /* LATENCY LATEST */
         latencyCommandReplyWithLatestEvents(c);

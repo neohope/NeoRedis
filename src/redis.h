@@ -42,7 +42,6 @@
 
 #include "fmacros.h"
 #include "config.h"
-#include "solarisfixes.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -67,14 +66,14 @@ typedef PORT_LONGLONG mstime_t; /* millisecond time type. */
 #include "anet.h"    /* Networking the easy way */
 #include "ziplist.h" /* Compact list data structure */
 #include "intset.h"  /* Compact integer set structure */
-#include "version.h" /* Version macro */
 #include "util.h"    /* Misc functions useful in many places */
 #include "latency.h" /* Latency monitor API */
-#include "sparkline.h" /* ASII graphs API */
 
 /* Error codes */
 #define REDIS_OK                0
 #define REDIS_ERR               -1
+
+#define REDIS_VERSION "3.0.504"
 
 /* Static server configuration */
 #define REDIS_DEFAULT_HZ        10      /* Time interrupt calls/sec. */

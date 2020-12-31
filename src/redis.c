@@ -3005,7 +3005,12 @@ void usage(void) {
 }
 
 void redisAsciiArt(void) {
-#include "asciilogo.h"
+    char *ascii_logo =
+        "Redis %s (%s/%d) %s bit\n"
+        "Running in %s mode\n"
+        "Port: %d\n"
+        "PID: %ld\n";
+
     char *buf = zmalloc(1024*16);
     char *mode;
 
@@ -3084,8 +3089,6 @@ void setupSignalHandlers(void) {
     return;
 }
 
-void memtest(size_t megabytes, int passes);
-
 /* Function called at startup to load RDB or AOF file in memory. */
 void loadDataFromDisk(void) {
     PORT_LONGLONG start = ustime();
@@ -3148,16 +3151,6 @@ int main(int argc, char **argv) {
             strcmp(argv[1], "--version") == 0) version();
         if (strcmp(argv[1], "--help") == 0 ||
             strcmp(argv[1], "-h") == 0) usage();
-        if (strcmp(argv[1], "--test-memory") == 0) {
-            if (argc == 3) {
-                memtest(atoi(argv[2]), IF_WIN32(5, 50));
-                exit(0);
-            } else {
-                fprintf(stderr,"Please specify the amount of memory to test in megabytes.\n");
-                fprintf(stderr,"Example: ./redis-server --test-memory 4096\n\n");
-                exit(1);
-            }
-        }
 
         /* First argument is the config file name? */
         if (argv[j][0] != '-' || argv[j][1] != '-')

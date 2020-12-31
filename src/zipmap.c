@@ -78,7 +78,6 @@
 #include <stdio.h>
 #include <string.h>
 #include "zmalloc.h"
-#include "endianconv.h"
 #ifdef _WIN32
 #include "Win32_Interop/Win32_Portability.h"
 #include "Win32_Interop/Win32_FDAPI.h"
@@ -111,7 +110,6 @@ static unsigned int zipmapDecodeLength(unsigned char *p) {
 
     if (len < ZIPMAP_BIGLEN) return len;
     memcpy(&len,p+1,sizeof(unsigned int));
-    memrev32ifbe(&len);
     return len;
 }
 
@@ -127,7 +125,7 @@ static unsigned int zipmapEncodeLength(unsigned char *p, unsigned int len) {
         } else {
             p[0] = ZIPMAP_BIGLEN;
             memcpy(p+1,&len,sizeof(len));
-            memrev32ifbe(p+1);
+            memcpy(p+1,&len,sizeof(len));
             return 1+sizeof(len);
         }
     }

@@ -35,7 +35,6 @@
 #endif
 
 #include "fmacros.h"
-#include "version.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -88,6 +87,7 @@
 #include "ae.h"
 
 #define REDIS_NOTUSED(V) ((void) V)
+#define REDIS_VERSION "3.0.504"
 
 #define OUTPUT_STANDARD 0
 #define OUTPUT_RAW 1

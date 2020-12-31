@@ -34,7 +34,6 @@
 #include "redis.h"
 #include "lzf.h"    /* LZF compression library */
 #include "zipmap.h"
-#include "endianconv.h"
 
 #include <math.h>
 #include <sys/types.h>
@@ -698,7 +697,6 @@ int rdbSaveRio(rio *rdb, int *error) {
     /* CRC64 checksum. It will be zero if checksum computation is disabled, the
      * loading code skips the check in this case. */
     cksum = rdb->cksum;
-    memrev64ifbe(&cksum);
     if (rioWrite(rdb,&cksum,8) == 0) goto werr;
     return REDIS_OK;
 
@@ -1234,7 +1232,6 @@ int rdbLoad(char *filename) {
         uint64_t cksum, expected = rdb.cksum;
 
         if (rioRead(&rdb,&cksum,8) == 0) goto eoferr;
-        memrev64ifbe(&cksum);
         if (cksum == 0) {
             redisLog(REDIS_WARNING,"RDB file was saved with checksum disabled: no check performed.");
         } else if (cksum != expected) {
