@@ -90,7 +90,7 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
       <PreprocessorDefinitions>USE_JEMALLOC;_OFF_T_DEFINED;WIN32;LACKS_STDLIB_H;_DEBUG;_CONSOLE;__x86_64__;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(SolutionDir)..\deps\lua\src;$(SolutionDir)..\deps\hiredis;$(SolutionDir)..\deps\jemalloc-win\include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)..\deps\hiredis;$(SolutionDir)..\deps\jemalloc-win\include</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <WarningLevel>Level3</WarningLevel>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
@@ -232,7 +232,6 @@
     <ClInclude Include="..\src\config.h" />
     <ClInclude Include="..\src\dict.h" />
     <ClInclude Include="..\src\fmacros.h" />
-    <ClInclude Include="..\src\help.h" />
     <ClInclude Include="..\src\intset.h" />
     <ClInclude Include="..\src\latency.h" />
     <ClInclude Include="..\src\lzf.h" />
@@ -244,7 +243,6 @@
     <ClInclude Include="..\src\rio.h" />
     <ClInclude Include="..\src\sds.h" />
     <ClInclude Include="..\src\sha1.h" />
-    <ClInclude Include="..\src\testhelp.h" />
     <ClInclude Include="..\src\util.h" />
     <ClInclude Include="..\src\ziplist.h" />
     <ClInclude Include="..\src\zipmap.h" />
@@ -256,9 +254,6 @@
     </ProjectReference>
     <ProjectReference Include="..\src\Win32_Interop\Win32_Interop.vcxproj">
       <Project>{8c07f811-c81c-432c-b334-1ae6faecf951}</Project>
-    </ProjectReference>
-    <ProjectReference Include="hiredis\hiredis.vcxproj">
-      <Project>{13e85053-54b3-487b-8ddb-3430b1c1b3bf}</Project>
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
