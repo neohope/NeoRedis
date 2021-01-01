@@ -29,12 +29,12 @@
  */
 
 #ifdef _WIN32
-#include "Win32_Interop/Win32_Portability.h"
-#include "Win32_Interop/win32_types.h"
-#include "Win32_Interop/Win32_Time.h"
+#include "Win32_Portability.h"
+#include "win32_types.h"
+#include "Win32_Time.h"
 #endif
 
-#include "fmacros.h"
+#include "../../src/fmacros.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -56,9 +56,9 @@
 #ifndef STDIN_FILENO
   #define STDIN_FILENO (_fileno(stdin))
 #endif
-#include "Win32_Interop/win32fixes.h"
-#include "Win32_Interop/Win32_Signal_Process.h"
-#include "Win32_Interop/Win32_ANSI.h"
+#include "win32fixes.h"
+#include "Win32_Signal_Process.h"
+#include "Win32_ANSI.h"
 #include <windows.h>
 #define strcasecmp _stricmp
 #define strncasecmp _strnicmp
@@ -79,12 +79,12 @@
 #endif
 
 #include "hiredis.h"
-#include "sds.h"
-#include "zmalloc.h"
+#include "../../src/sds.h"
+#include "../../src/zmalloc.h"
 #include "linenoise.h"
 #include "help.h"
-#include "anet.h"
-#include "ae.h"
+#include "../../src/anet.h"
+#include "../../src/ae.h"
 
 #define REDIS_NOTUSED(V) ((void) V)
 #define REDIS_VERSION "3.0.504"

@@ -88,10 +88,10 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <AdditionalIncludeDirectories>$(SolutionDir)..\deps\hiredis;$(SolutionDir)..\deps\linenoise;$(SolutionDir)..\deps\lua\src</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>_OFF_T_DEFINED;WIN32;LACKS_STDLIB_H;_DEBUG;_CONSOLE;%(PreprocessorDefinitions);NO_QFORKIMPL</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <DisableSpecificWarnings>4996</DisableSpecificWarnings>
+      <AdditionalIncludeDirectories>$(SolutionDir)..\src\Win32_Interop</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -129,7 +129,7 @@
       <Optimization>Full</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <AdditionalIncludeDirectories>$(SolutionDir)..\deps\hiredis;$(SolutionDir)..\deps\linenoise;$(SolutionDir)..\deps\lua\src</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)..\src\Win32_Interop</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>_OFF_T_DEFINED;WIN32;LACKS_STDLIB_H;NDEBUG;_CONSOLE;%(PreprocessorDefinitions);NO_QFORKIMPL</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <DisableSpecificWarnings>4996</DisableSpecificWarnings>
@@ -169,24 +169,27 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\deps\linenoise\linenoise.c" />
     <ClCompile Include="..\..\src\adlist.c" />
     <ClCompile Include="..\..\src\ae.c" />
     <ClCompile Include="..\..\src\anet.c" />
-    <ClCompile Include="..\..\src\redis-cli.c" />
     <ClCompile Include="..\..\src\sds.c" />
     <ClCompile Include="..\..\src\zmalloc.c" />
+    <ClCompile Include="hiredis.c" />
+    <ClCompile Include="linenoise.c" />
+    <ClCompile Include="net.c" />
+    <ClCompile Include="redis-cli.c" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\Win32_Interop\Win32_Interop.vcxproj">
       <Project>{8c07f811-c81c-432c-b334-1ae6faecf951}</Project>
     </ProjectReference>
-    <ProjectReference Include="..\hiredis\hiredis.vcxproj">
-      <Project>{13e85053-54b3-487b-8ddb-3430b1c1b3bf}</Project>
-    </ProjectReference>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\src\help.h" />
+    <ClInclude Include="help.h" />
+    <ClInclude Include="hiredis.h" />
+    <ClInclude Include="linenoise.h" />
+    <ClInclude Include="net.h" />
+    <ClInclude Include="win32_hiredis.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

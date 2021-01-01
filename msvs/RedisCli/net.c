@@ -30,7 +30,7 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "fmacros.h"
+#include "../../src/fmacros.h"
 #include <sys/types.h>
 #ifndef _WIN32
 #include <sys/socket.h>
@@ -56,7 +56,7 @@
 #include <limits.h>
 
 #include "net.h"
-#include "sds.h"
+#include "../../src/sds.h"
 #ifdef _WIN32
   #include "win32_hiredis.h"
   #include "mstcpip.h"
