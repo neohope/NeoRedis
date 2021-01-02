@@ -206,7 +206,6 @@
     <ClCompile Include="..\src\networking.c" />
     <ClCompile Include="..\src\object.c" />
     <ClCompile Include="..\src\pqsort.c" />
-    <ClCompile Include="..\src\rand.c" />
     <ClCompile Include="..\src\rdb.c" />
     <ClCompile Include="..\src\redis.c" />
     <ClCompile Include="..\src\rio.c" />
@@ -231,13 +230,11 @@
     <ClInclude Include="..\src\bio.h" />
     <ClInclude Include="..\src\config.h" />
     <ClInclude Include="..\src\dict.h" />
-    <ClInclude Include="..\src\fmacros.h" />
     <ClInclude Include="..\src\intset.h" />
     <ClInclude Include="..\src\latency.h" />
     <ClInclude Include="..\src\lzf.h" />
     <ClInclude Include="..\src\lzfP.h" />
     <ClInclude Include="..\src\pqsort.h" />
-    <ClInclude Include="..\src\rand.h" />
     <ClInclude Include="..\src\rdb.h" />
     <ClInclude Include="..\src\redis.h" />
     <ClInclude Include="..\src\rio.h" />

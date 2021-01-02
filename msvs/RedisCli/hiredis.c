@@ -29,7 +29,6 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "../../src/fmacros.h"
 #include <string.h>
 #include <stdlib.h>
 #ifndef _WIN32
