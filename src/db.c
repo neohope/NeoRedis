@@ -44,11 +44,7 @@ robj *lookupKey(redisDb *db, robj *key) {
     if (de) {
         robj *val = dictGetVal(de);
 
-        /* Update the access time for the ageing algorithm.
-         * Don't do it if we have a saving child, as this will trigger
-         * a copy on write madness. */
-        if (server.rdb_child_pid == -1 && server.aof_child_pid == -1)
-            val->lru = LRU_CLOCK();
+		val->lru = LRU_CLOCK();
         return val;
     } else {
         return NULL;
@@ -231,11 +227,9 @@ int selectDb(redisClient *c, int id) {
  *----------------------------------------------------------------------------*/
 
 void signalModifiedKey(redisDb *db, robj *key) {
-    touchWatchedKey(db,key);
 }
 
 void signalFlushedDb(int dbid) {
-    touchWatchedKeysOnFlush(dbid);
 }
 
 /*-----------------------------------------------------------------------------
@@ -254,21 +248,7 @@ void flushallCommand(redisClient *c) {
     signalFlushedDb(-1);
     server.dirty += emptyDb(NULL);
     addReply(c,shared.ok);
-    if (server.rdb_child_pid != -1) {
-#ifdef _WIN32
-        AbortForkOperation();
-#else
-        kill(server.rdb_child_pid,SIGUSR1);
-#endif
-        rdbRemoveTempFile(server.rdb_child_pid);
-    }
-    if (server.saveparamslen > 0) {
-        /* Normally rdbSave() will reset dirty, but we don't want this here
-         * as otherwise FLUSHALL will not be replicated nor put into the AOF. */
-        PORT_LONGLONG saved_dirty = server.dirty;                               /* UPSTREAM_FIX: server.dirty is a PORT_LONGLONG not an int */
-        rdbSave(server.rdb_filename);
-        server.dirty = saved_dirty;
-    }
+
     server.dirty++;
 }
 
@@ -600,7 +580,6 @@ void dbsizeCommand(redisClient *c) {
 }
 
 void lastsaveCommand(redisClient *c) {
-    addReplyLongLong(c,server.lastsave);
 }
 
 void typeCommand(redisClient *c) {
@@ -790,9 +769,6 @@ void propagateExpire(redisDb *db, robj *key) {
     argv[1] = key;
     incrRefCount(argv[0]);
     incrRefCount(argv[1]);
-
-    if (server.aof_state != REDIS_AOF_OFF)
-        feedAppendOnlyFile(server.delCommand,db->id,argv,2);
 
     decrRefCount(argv[0]);
     decrRefCount(argv[1]);
