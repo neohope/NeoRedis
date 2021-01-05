@@ -190,7 +190,6 @@
     <ClCompile Include="..\src\adlist.c" />
     <ClCompile Include="..\src\ae.c" />
     <ClCompile Include="..\src\anet.c" />
-    <ClCompile Include="..\src\bitops.c" />
     <ClCompile Include="..\src\blocked.c" />
     <ClCompile Include="..\src\config.c" />
     <ClCompile Include="..\src\db.c" />
@@ -209,7 +208,6 @@
     <ClCompile Include="..\src\t_zset.c" />
     <ClCompile Include="..\src\util.c" />
     <ClCompile Include="..\src\ziplist.c" />
-    <ClCompile Include="..\src\zipmap.c" />
     <ClCompile Include="..\src\zmalloc.c" />
   </ItemGroup>
   <ItemGroup>
@@ -224,7 +222,6 @@
     <ClInclude Include="..\src\sds.h" />
     <ClInclude Include="..\src\util.h" />
     <ClInclude Include="..\src\ziplist.h" />
-    <ClInclude Include="..\src\zipmap.h" />
     <ClInclude Include="..\src\zmalloc.h" />
   </ItemGroup>
   <ItemGroup>
